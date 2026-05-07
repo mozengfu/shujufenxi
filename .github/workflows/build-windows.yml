@@ -88,7 +88,7 @@ jobs:
           "
 
       - name: Build with PyInstaller
-        run: pyinstaller --onefile --windowed --name 数据分析系统 --icon=icon.ico --add-data "icon.ico;." --hidden-import matplotlib.backends.backend_qtagg --hidden-import matplotlib.backends.backend_agg --exclude-module PyQt5 --exclude-module PySide6 --exclude-module IPython --exclude-module jupyter main.py
+        run: pyinstaller --onefile --windowed --name 数据分析系统 --icon=icon.ico --add-data "icon.ico;." --collect-all PyQt6 --hidden-import matplotlib.backends.backend_qtagg --hidden-import matplotlib.backends.backend_agg --exclude-module PyQt5 --exclude-module PySide6 --exclude-module IPython --exclude-module jupyter main.py
 
       - name: Upload exe
         uses: actions/upload-artifact@v4
