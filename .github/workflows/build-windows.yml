@@ -88,10 +88,12 @@ jobs:
           "
 
       - name: Build with PyInstaller
-        run: pyinstaller --onefile --windowed --name 数据分析系统 --icon=icon.ico --add-data "icon.ico;." --collect-all PyQt6 --hidden-import matplotlib.backends.backend_qtagg --hidden-import matplotlib.backends.backend_agg --exclude-module PyQt5 --exclude-module PySide6 --exclude-module IPython --exclude-module jupyter main.py
+        run: |
+          pyinstaller --windowed --name 数据分析系统 --icon=icon.ico --add-data "icon.ico;." --collect-all PyQt6 --hidden-import matplotlib.backends.backend_qtagg --hidden-import matplotlib.backends.backend_agg --exclude-module PyQt5 --exclude-module PySide6 --exclude-module IPython --exclude-module jupyter main.py
+          Compress-Archive -Path dist\数据分析系统\* -DestinationPath 数据分析系统.zip
 
-      - name: Upload exe
+      - name: Upload zip
         uses: actions/upload-artifact@v4
         with:
           name: 数据分析系统-Windows
-          path: dist/数据分析系统.exe
+          path: 数据分析系统.zip
