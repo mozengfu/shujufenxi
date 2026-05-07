@@ -59,52 +59,63 @@ if sys.platform == 'win32' and getattr(sys, 'frozen', False):
             _meipass / 'PyQt6',
             _meipass,
         ]
-        for _qp in _dll_dirs:
-            if _qp.exists():
-                os.add_dll_directory(str(_qp))
-        # 也加到 PATH 里（兼容性更好）
+        # 同时用 os.add_dll_directory + PATH，双管齐下
         _paths_to_add = []
         for _qp in _dll_dirs:
             if _qp.exists():
+                os.add_dll_directory(str(_qp))
                 _paths_to_add.append(str(_qp))
         if _paths_to_add:
             os.environ['PATH'] = ';'.join(_paths_to_add) + ';' + os.environ.get('PATH', '')
+
+        # 最直接的方式：在 import PyQt6 前，用 ctypes 手动加载 Qt DLL
+        # 一旦 DLL 加载进内存，后续 .pyd 依赖加载时就能找到
+        import ctypes
+        _qt_bin = _meipass / 'PyQt6' / 'Qt6' / 'bin'
+        if _qt_bin.exists():
+            for _dll_name in ['Qt6Core.dll', 'Qt6Gui.dll', 'Qt6Widgets.dll']:
+                _dll_path = _qt_bin / _dll_name
+                if _dll_path.exists():
+                    try:
+                        ctypes.CDLL(str(_dll_path))
+                    except Exception:
+                        pass  # 单个 DLL 加载失败不终止
     except Exception:
         pass
 
-# ── 诊断：写入环境信息到桌面（帮助排查 QtWidgets 加载失败） ──
+# ── 诊断：写入环境信息（帮助排查 QtWidgets 加载失败） ──
 if getattr(sys, 'frozen', False) and sys.platform == 'win32':
     try:
-        _diag = Path('~/Desktop/数据分析系统_diag.txt').expanduser()
-        with open(_diag, 'w', encoding='utf-8') as _f:
-            _mei = Path(sys._MEIPASS)
-            _f.write(f'MEIPASS: {_mei}\n')
-            _f.write(f'EXE: {sys.executable}\n')
-            _f.write(f'CWD: {Path.cwd()}\n')
-            _f.write(f'PATH: {os.environ.get("PATH", "")[:3000]}\n')
-            # 扫描常见 Qt DLL 位置
-            _scan_dirs = [
-                _mei / 'PyQt6' / 'Qt6' / 'bin',
-                _mei / 'Qt6' / 'bin',
-                _mei / 'PyQt6',
-                _mei,
-            ]
-            for _sd in _scan_dirs:
-                if _sd.exists():
-                    _f.write(f'\n--- {_sd} ---\n')
-                    for _dll in sorted(_sd.glob('*.dll')):
-                        _f.write(f'  {_dll.name}\n')
-            # 检查关键 DLL
-            _key_dlls = ['Qt6Widgets.dll', 'Qt6Core.dll', 'Qt6Gui.dll']
-            for _k in _key_dlls:
-                _found = False
-                for _sd in _scan_dirs:
-                    if (_sd / _k).exists():
-                        _found = True
-                        _f.write(f'{_k}: FOUND in {_sd}\n')
-                        break
-                if not _found:
-                    _f.write(f'{_k}: NOT FOUND\n')
+        _mei = Path(sys._MEIPASS)
+        _diag_lines = [
+            f'MEIPASS: {_mei}',
+            f'EXE: {sys.executable}',
+            f'CWD: {Path.cwd()}',
+            f'PATH: {os.environ.get("PATH", "")[:3000]}',
+        ]
+        _scan_dirs = [
+            _mei / 'PyQt6' / 'Qt6' / 'bin',
+            _mei / 'Qt6' / 'bin',
+            _mei / 'PyQt6',
+            _mei,
+        ]
+        for _sd in _scan_dirs:
+            if _sd.exists():
+                _dlls = [n for n in sorted(_sd.glob('*.dll'))]
+                _diag_lines.append(f'\n--- {_sd} ({len(_dlls)} DLLs) ---')
+                for _d in _dlls:
+                    _diag_lines.append(f'  {_d.name}')
+        _key_dlls = ['Qt6Widgets.dll', 'Qt6Core.dll', 'Qt6Gui.dll']
+        for _k in _key_dlls:
+            _found = next((s for s in _scan_dirs if (s / _k).exists()), None)
+            _diag_lines.append(f'{_k}: FOUND in {_found}' if _found else f'{_k}: NOT FOUND')
+        _diag_text = '\n'.join(_diag_lines)
+        # 写 exe 目录 + 桌面
+        for _dp in [_mei / '数据分析系统_diag.txt', Path('~/Desktop/数据分析系统_diag.txt').expanduser()]:
+            try:
+                _dp.write_text(_diag_text)
+            except Exception:
+                pass
     except Exception:
         pass
 
