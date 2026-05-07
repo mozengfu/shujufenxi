@@ -29,16 +29,21 @@ try:
     if not os.environ.get('QT_QPA_PLATFORM_PLUGIN_PATH'):
         if getattr(sys, 'frozen', False):
             base = Path(sys._MEIPASS)
+            _plugin_candidates = [
+                base / 'PyQt6' / 'Qt6' / 'plugins' / 'platforms',
+                base / 'plugins' / 'platforms',
+            ]
         else:
             try:
                 import PyQt6
                 base = Path(PyQt6.__file__).parent / 'Qt6'
+                _plugin_candidates = [base / 'plugins' / 'platforms']
             except ImportError:
-                base = None
-        if base:
-            plugins_platforms = base / 'plugins' / 'platforms'
-            if plugins_platforms.exists():
-                os.environ['QT_QPA_PLATFORM_PLUGIN_PATH'] = str(plugins_platforms)
+                _plugin_candidates = []
+        for _pc in _plugin_candidates:
+            if _pc.exists():
+                os.environ['QT_QPA_PLATFORM_PLUGIN_PATH'] = str(_pc)
+                break
 except Exception:
     _log_crash(sys.exc_info())
     raise
@@ -47,9 +52,23 @@ except Exception:
 if sys.platform == 'win32' and getattr(sys, 'frozen', False):
     try:
         _meipass = Path(sys._MEIPASS)
-        for _qp in [_meipass / 'PyQt6' / 'Qt6' / 'bin', _meipass]:
+        # PyInstaller 收集 PyQt6 的多种可能路径
+        _dll_dirs = [
+            _meipass / 'PyQt6' / 'Qt6' / 'bin',
+            _meipass / 'Qt6' / 'bin',
+            _meipass / 'PyQt6',
+            _meipass,
+        ]
+        for _qp in _dll_dirs:
             if _qp.exists():
                 os.add_dll_directory(str(_qp))
+        # 也加到 PATH 里（兼容性更好）
+        _paths_to_add = []
+        for _qp in _dll_dirs:
+            if _qp.exists():
+                _paths_to_add.append(str(_qp))
+        if _paths_to_add:
+            os.environ['PATH'] = ';'.join(_paths_to_add) + ';' + os.environ.get('PATH', '')
     except Exception:
         pass
 
@@ -58,23 +77,34 @@ if getattr(sys, 'frozen', False) and sys.platform == 'win32':
     try:
         _diag = Path('~/Desktop/数据分析系统_diag.txt').expanduser()
         with open(_diag, 'w', encoding='utf-8') as _f:
-            _f.write(f'MEIPASS: {sys._MEIPASS}\n')
+            _mei = Path(sys._MEIPASS)
+            _f.write(f'MEIPASS: {_mei}\n')
             _f.write(f'EXE: {sys.executable}\n')
             _f.write(f'CWD: {Path.cwd()}\n')
-            _f.write(f'PATH: {os.environ.get("PATH", "")[:2000]}\n')
-            import glob
-            _qdir = Path(sys._MEIPASS) / 'PyQt6' / 'Qt6' / 'bin'
-            if _qdir.exists():
-                _f.write(f'Qt6 bin dir: {_qdir} (EXISTS)\n')
-                for _dll in _qdir.glob('Qt6*.dll'):
-                    _f.write(f'  {_dll.name}\n')
-            else:
-                _f.write(f'Qt6 bin dir: {_qdir} (NOT FOUND)\n')
-            _pdir = Path(sys._MEIPASS) / 'PyQt6'
-            if _pdir.exists():
-                _f.write(f'PyQt6 dir: {_pdir} (EXISTS)\n')
-                for _item in _pdir.iterdir():
-                    _f.write(f'  {_item.name}\n')
+            _f.write(f'PATH: {os.environ.get("PATH", "")[:3000]}\n')
+            # 扫描常见 Qt DLL 位置
+            _scan_dirs = [
+                _mei / 'PyQt6' / 'Qt6' / 'bin',
+                _mei / 'Qt6' / 'bin',
+                _mei / 'PyQt6',
+                _mei,
+            ]
+            for _sd in _scan_dirs:
+                if _sd.exists():
+                    _f.write(f'\n--- {_sd} ---\n')
+                    for _dll in sorted(_sd.glob('*.dll')):
+                        _f.write(f'  {_dll.name}\n')
+            # 检查关键 DLL
+            _key_dlls = ['Qt6Widgets.dll', 'Qt6Core.dll', 'Qt6Gui.dll']
+            for _k in _key_dlls:
+                _found = False
+                for _sd in _scan_dirs:
+                    if (_sd / _k).exists():
+                        _found = True
+                        _f.write(f'{_k}: FOUND in {_sd}\n')
+                        break
+                if not _found:
+                    _f.write(f'{_k}: NOT FOUND\n')
     except Exception:
         pass
 

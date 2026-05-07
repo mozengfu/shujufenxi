@@ -3,7 +3,11 @@
     "allow": [
       "Bash(git commit -m ' *)",
       "Bash(unzip -l /tmp/inspect/数据分析系统.zip)",
-      "Bash(unzip -p /tmp/inspect/数据分析系统.zip _internal/PyQt6/__init__.py)"
+      "Bash(unzip -p /tmp/inspect/数据分析系统.zip _internal/PyQt6/__init__.py)",
+      "Bash(gh run *)"
+    ],
+    "additionalDirectories": [
+      "/tmp/win_simple"
     ]
   }
 }
