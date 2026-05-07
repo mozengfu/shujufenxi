@@ -1,0 +1,105 @@
+name: Build Windows exe
+
+on:
+  workflow_dispatch:  # 手动触发
+  push:
+    tags:
+      - 'v*'          # 推送 v1.0、v2.0 等标签时自动触发
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Generate .ico icon
+        run: |
+          python -c "
+          from PIL import Image, ImageDraw, ImageFilter
+
+          S = 256
+          img = Image.new('RGB', (S, S), (44, 62, 80))
+          draw = ImageDraw.Draw(img)
+
+          # 渐变
+          for y in range(S):
+              t = y / S
+              r = int(44 + (41 - 44) * t)
+              g = int(62 + (128 - 62) * t)
+              b = int(80 + (185 - 80) * t)
+              draw.line([(0, y), (S, y)], fill=(r, g, b))
+
+          # 柱状图
+          cx, cy = S // 2, S // 2
+          bw, gap = 20, 18
+          base_y = 200
+          bars = [(cx - gap - bw, base_y - 64, cx - gap, base_y),
+                  (cx - bw // 2, base_y - 115, cx + bw // 2, base_y),
+                  (cx + gap, base_y - 90, cx + gap + bw, base_y)]
+          for i, (x1, y1, x2, y2) in enumerate(bars):
+              color = (39, 174, 96) if i == 1 else (255, 255, 255)
+              draw.rounded_rectangle((x1, y1, x2, y2), radius=5, fill=color)
+
+          # 折线
+          pts = [(cx - gap - bw // 2, base_y - 56),
+                 (cx, base_y - 122),
+                 (cx + gap + bw // 2, base_y - 97)]
+          draw.line(pts, fill=(142, 68, 173), width=3, joint='curve')
+          for px, py in pts:
+              draw.ellipse((px-4, py-4, px+4, py+4), fill=(142, 68, 173))
+
+          # 表格
+          tl, tr, tt, tb = 148, 235, 123, 200
+          th = tb - tt
+          draw.rectangle((tl, tt, tr, tt + th // 4), fill=(255,255,255,30))
+          for c in range(4):
+              x = tl + (tr - tl) * c // 3
+              draw.line([(x, tt), (x, tb)], fill=(200,200,200))
+          for r in range(5):
+              y = tt + th * r // 4
+              draw.line([(tl, y), (tr, y)], fill=(200,200,200))
+
+          # 圆角蒙版 + 阴影
+          shadow = Image.new('RGBA', (S, S), (0,0,0,0))
+          sd = ImageDraw.Draw(shadow)
+          sd.rounded_rectangle((5, 5, S, S), radius=40, fill=(0,0,0,100))
+          shadow = shadow.filter(ImageFilter.GaussianBlur(radius=6))
+
+          mask = Image.new('L', (S, S), 0)
+          md = ImageDraw.Draw(mask)
+          md.rounded_rectangle((0, 0, S, S), radius=40, fill=255)
+          masked = Image.new('RGBA', (S, S), (0,0,0,0))
+          masked.paste(img, (0, 0), mask)
+          final = Image.alpha_composite(shadow, masked)
+
+          final.save('icon.ico', 'ICO', sizes=[(x, x) for x in [16, 32, 48, 64, 128, 256]])
+          print('icon.ico generated')
+          "
+
+      - name: Build with PyInstaller
+        run: |
+          pyinstaller --onefile --windowed --name 数据分析系统 --icon=icon.ico --add-data "icon.ico;." ^
+            --hidden-import matplotlib.backends.backend_qtagg ^
+            --hidden-import matplotlib.backends.backend_agg ^
+            --exclude-module PyQt5 ^
+            --exclude-module PySide6 ^
+            --exclude-module IPython ^
+            --exclude-module jupyter ^
+            main.py
+
+      - name: Upload exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: 数据分析系统-Windows
+          path: dist/数据分析系统.exe

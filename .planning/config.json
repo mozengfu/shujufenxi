@@ -1,0 +1,11 @@
+{
+  "workflow": {
+    "git_commits": "atomic",
+    "verification": "ruff_check",
+    "phase_execution": "sequential"
+  },
+  "preferences": {
+    "planning_depth": "detailed",
+    "output_quality": "high"
+  }
+}
