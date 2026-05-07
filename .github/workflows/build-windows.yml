@@ -87,23 +87,9 @@ jobs:
           print('icon.ico generated')
           "
 
-      - name: Bundle VC++ runtime DLLs
-        run: |
-          # 收集 QtWidgets 依赖的 VC++ 运行时 DLL
-          $dlls = @('vcruntime140.dll', 'vcruntime140_1.dll', 'msvcp140.dll', 'msvcp140_1.dll', 'msvcp140_2.dll', 'concrt140.dll')
-          mkdir vc_dlls -Force
-          foreach ($dll in $dlls) {
-            $paths = @("C:\Windows\System32\$dll")
-            foreach ($p in $paths) {
-              if (Test-Path $p) { Copy-Item $p vc_dlls\; break }
-            }
-          }
-          dir vc_dlls
-        shell: powershell
-
       - name: Build with PyInstaller
         run: |
-          pyinstaller --windowed --name 数据分析系统 --icon=icon.ico --add-data "icon.ico;." --add-binary "vc_dlls;." --collect-all PyQt6 --hidden-import matplotlib.backends.backend_qtagg --hidden-import matplotlib.backends.backend_agg --exclude-module PyQt5 --exclude-module PySide6 --exclude-module IPython --exclude-module jupyter main.py
+          pyinstaller --windowed --name 数据分析系统 --icon=icon.ico --add-data "icon.ico;." --hidden-import matplotlib.backends.backend_qtagg --hidden-import matplotlib.backends.backend_agg --exclude-module PyQt5 --exclude-module PySide6 --exclude-module IPython --exclude-module jupyter main.py
           Compress-Archive -Path dist\数据分析系统\* -DestinationPath 数据分析系统.zip
 
       - name: Upload zip

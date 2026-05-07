@@ -53,6 +53,31 @@ if sys.platform == 'win32' and getattr(sys, 'frozen', False):
     except Exception:
         pass
 
+# ── 诊断：写入环境信息到桌面（帮助排查 QtWidgets 加载失败） ──
+if getattr(sys, 'frozen', False) and sys.platform == 'win32':
+    try:
+        _diag = Path('~/Desktop/数据分析系统_diag.txt').expanduser()
+        with open(_diag, 'w', encoding='utf-8') as _f:
+            _f.write(f'MEIPASS: {sys._MEIPASS}\n')
+            _f.write(f'EXE: {sys.executable}\n')
+            _f.write(f'CWD: {Path.cwd()}\n')
+            _f.write(f'PATH: {os.environ.get("PATH", "")[:2000]}\n')
+            import glob
+            _qdir = Path(sys._MEIPASS) / 'PyQt6' / 'Qt6' / 'bin'
+            if _qdir.exists():
+                _f.write(f'Qt6 bin dir: {_qdir} (EXISTS)\n')
+                for _dll in _qdir.glob('Qt6*.dll'):
+                    _f.write(f'  {_dll.name}\n')
+            else:
+                _f.write(f'Qt6 bin dir: {_qdir} (NOT FOUND)\n')
+            _pdir = Path(sys._MEIPASS) / 'PyQt6'
+            if _pdir.exists():
+                _f.write(f'PyQt6 dir: {_pdir} (EXISTS)\n')
+                for _item in _pdir.iterdir():
+                    _f.write(f'  {_item.name}\n')
+    except Exception:
+        pass
+
 from PyQt6.QtWidgets import QApplication, QMessageBox
 from PyQt6.QtGui import QFont, QColor
 from PyQt6.QtCore import QTranslator, QLibraryInfo, QLocale
