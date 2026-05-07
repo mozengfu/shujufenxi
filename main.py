@@ -39,9 +39,19 @@ try:
             plugins_platforms = base / 'plugins' / 'platforms'
             if plugins_platforms.exists():
                 os.environ['QT_QPA_PLATFORM_PLUGIN_PATH'] = str(plugins_platforms)
-except Exception as e:
+except Exception:
     _log_crash(sys.exc_info())
     raise
+
+# ── Windows 下确保 Qt DLL 在搜索路径中 ──
+if sys.platform == 'win32' and getattr(sys, 'frozen', False):
+    try:
+        _meipass = Path(sys._MEIPASS)
+        for _qp in [_meipass / 'PyQt6' / 'Qt6' / 'bin', _meipass]:
+            if _qp.exists():
+                os.add_dll_directory(str(_qp))
+    except Exception:
+        pass
 
 from PyQt6.QtWidgets import QApplication, QMessageBox
 from PyQt6.QtGui import QFont, QColor
