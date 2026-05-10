@@ -102,11 +102,11 @@ jobs:
             --icon=icon.ico `
             --add-data "icon.ico;." `
             --add-binary "vc_dlls;." `
-            --collect-all PyQt6 `
+            --collect-all PyQt5 `
             --collect-all matplotlib `
             --hidden-import matplotlib.backends.backend_qtagg `
             --hidden-import matplotlib.backends.backend_agg `
-            --exclude-module PyQt5 `
+            --exclude-module PyQt6 `
             --exclude-module PySide6 `
             --exclude-module IPython `
             --exclude-module jupyter `
@@ -120,7 +120,7 @@ jobs:
           Write-Output "=== Top-level files ==="
           Get-ChildItem "dist\$distDir" -Name | Select-Object -First 30
           Write-Output "=== Qt DLLs ==="
-          Get-ChildItem "dist\$distDir\Qt6*.dll" -Name -ErrorAction SilentlyContinue
+          Get-ChildItem "dist\$distDir\Qt5*.dll" -Name -ErrorAction SilentlyContinue
           Write-Output "=== MSVC DLLs ==="
           Get-ChildItem "dist\$distDir\vcruntime*.dll", "dist\$distDir\msvcp140*.dll" -Name -ErrorAction SilentlyContinue
         shell: powershell

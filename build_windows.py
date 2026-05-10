@@ -26,7 +26,7 @@ print("  Python %s.%s.%s ✓" % (py_version.major, py_version.minor, py_version.
 
 # 2. 安装依赖
 print("\n[2/4] 安装依赖...")
-deps = ['PyQt6', 'pandas', 'openpyxl', 'python-docx', 'pyinstaller']
+deps = ['PyQt5', 'pandas', 'openpyxl', 'python-docx', 'pyinstaller']
 for dep in deps:
     try:
         __import__(dep.lower().replace('-', '_'))

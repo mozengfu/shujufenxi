@@ -1,11 +1,11 @@
 """多表合并对话框"""
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
+from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
                               QLabel, QListWidget, QFileDialog, QComboBox,
                               QGroupBox, QTableWidget, QTableWidgetItem,
                               QHeaderView, QRadioButton, QMessageBox)
 import pandas as pd
 from typing import List, Dict, Any
-from PyQt6.QtGui import QColor
+from PyQt5.QtGui import QColor
 
 from core import TableImporter
 
@@ -61,7 +61,7 @@ class MergeDialog(QDialog):
         # 表信息显示
         self.table_info = QTableWidget()
         self.table_info.setMaximumHeight(120)
-        self.table_info.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.table_info.setEditTriggers(QTableWidget.NoEditTriggers)
         layout.addWidget(self.table_info)
 
         # 列结构对比
@@ -195,7 +195,7 @@ class MergeDialog(QDialog):
             text = '' if pd.isna(value) else str(value)
             self.table_info.setItem(0, j, QTableWidgetItem(text))
 
-        self.table_info.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.table_info.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
 
     def _compare_structures(self):
         """列结构对比 - 弹窗显示所有表的列信息"""
@@ -257,7 +257,7 @@ class MergeDialog(QDialog):
                     item.setBackground(QColor('#FFCCCC'))
                     table.setItem(i, j + 1, item)
 
-        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         layout.addWidget(table)
 
         close_btn = QPushButton('关闭')
@@ -265,7 +265,7 @@ class MergeDialog(QDialog):
         layout.addWidget(close_btn)
 
         dialog.setLayout(layout)
-        dialog.exec()
+        dialog.exec_()
 
     def on_mode_changed(self):
         """合并模式变化"""
@@ -304,7 +304,7 @@ class MergeDialog(QDialog):
                         text = '' if pd.isna(value) else str(value)
                         table.setItem(i, j, QTableWidgetItem(text))
 
-                table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+                table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
                 layout.addWidget(table)
 
                 close_btn = QPushButton('关闭')
@@ -312,7 +312,7 @@ class MergeDialog(QDialog):
                 layout.addWidget(close_btn)
 
                 preview_dialog.setLayout(layout)
-                preview_dialog.exec()
+                preview_dialog.exec_()
             else:
                 QMessageBox.warning(self, '警告', '无法预览合并结果')
         except Exception as e:

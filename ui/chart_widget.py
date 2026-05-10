@@ -1,4 +1,4 @@
-"""图表组件 - 基于 matplotlib 嵌入 PyQt6"""
+"""图表组件 - 基于 matplotlib 嵌入 PyQt5"""
 import matplotlib
 matplotlib.use('QtAgg')
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
@@ -8,7 +8,7 @@ import pandas as pd
 import numpy as np
 from typing import List, Optional
 
-from PyQt6.QtWidgets import QWidget, QVBoxLayout
+from PyQt5.QtWidgets import QWidget, QVBoxLayout
 
 
 # 设置中文字体

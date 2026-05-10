@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 项目概述
 桌面应用，用于导入 Excel/CSV 表格，进行描述性统计、数据质量检测、对比分析、多表合并、数据清洗，输出 Excel 报表和 Word 报告。
 
-技术栈：PyQt6 + pandas + openpyxl + python-docx
+技术栈：PyQt5 + pandas + openpyxl + python-docx
 
 ## 常用命令
 ```bash
@@ -34,7 +34,7 @@ shujufenxi/
 │   ├── importer.py           # TableImporter - xlsx/xls/csv 导入，自动编码
 │   ├── merger.py             # TableMerger - 关键列合并/行追加合并
 │   └── reporter.py           # WordReporter - docx 报告生成
-└── ui/                       # PyQt6 界面层
+└── ui/                       # PyQt5 界面层
     ├── main_window.py        # MainWindow - 主窗口，协调所有模块
     ├── analysis_panel.py     # AnalysisPanel - 核心分析面板，聚合配置/结果展示
     ├── field_selector.py     # FieldSelector - 字段选择组件（复选框+类型标签+缺失提示）
@@ -72,5 +72,5 @@ MainWindow、AnalysisPanel、FieldSelector 均实现 dragEnterEvent/dropEvent �
 
 ### 打包
 - 使用 PyInstaller spec 打包为 .app
-- 关键配置：排除 PyQt5/PySide6，禁用 console，打包 Qt plugins 目录
+- 关键配置：排除 PyQt6/PySide6，禁用 console，打包 Qt plugins 目录
 - 打包命令：`pyinstaller 数据分析系统.spec`

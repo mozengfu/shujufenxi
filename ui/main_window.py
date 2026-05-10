@@ -1,9 +1,9 @@
 """主窗口模块"""
-from PyQt6.QtWidgets import (QMainWindow, QToolBar,
+from PyQt5.QtWidgets import (QMainWindow, QToolBar,
                               QFileDialog, QMessageBox, QTabWidget,
                               QLineEdit, QTextEdit, QApplication)
-from PyQt6.QtGui import QAction, QKeySequence, QDragEnterEvent, QDropEvent
-from PyQt6.QtCore import Qt, QSettings
+from PyQt5.QtGui import QAction, QKeySequence, QDragEnterEvent, QDropEvent
+from PyQt5.QtCore import Qt, QSettings
 import pandas as pd
 
 from core import TableImporter, DataAnalyzer, TableMerger, ExcelExporter, WordReporter
@@ -336,7 +336,7 @@ class MainWindow(QMainWindow):
     def import_file(self):
         """导入文件"""
         dialog = ImportDialog(self)
-        if dialog.exec():
+        if dialog.exec_():
             file_path = dialog.selected_file
             try:
                 self.current_df = self.importer.import_file(file_path)
@@ -356,7 +356,7 @@ class MainWindow(QMainWindow):
             return
 
         dialog = MergeDialog(self, initial_df=self.current_df)
-        if dialog.exec():
+        if dialog.exec_():
             result = dialog.get_result()
             try:
                 if result['mode'] == 'key':
@@ -382,7 +382,7 @@ class MainWindow(QMainWindow):
             return
 
         dialog = CleanDialog(self, initial_df=self.current_df)
-        if dialog.exec():
+        if dialog.exec_():
             result = dialog.get_result()
             if result is not None:
                 self.current_df = result
@@ -397,7 +397,7 @@ class MainWindow(QMainWindow):
             return
 
         dialog = ColumnCalcDialog(self, df=self.current_df)
-        if dialog.exec():
+        if dialog.exec_():
             result = dialog.get_result()
             if result is not None:
                 self.current_df = result
@@ -435,7 +435,7 @@ class MainWindow(QMainWindow):
             return
 
         dialog = ReportDesigner(self, df=self.current_df)
-        dialog.exec()
+        dialog.exec_()
 
     def export_word(self):
         """导出 Word 报告"""
@@ -444,7 +444,7 @@ class MainWindow(QMainWindow):
             return
 
         dialog = ReportDialog(self)
-        if dialog.exec():
+        if dialog.exec_():
             file_path = dialog.selected_file
             try:
                 self.reporter.create_document()
@@ -472,13 +472,13 @@ class MainWindow(QMainWindow):
     def show_help(self):
         """显示帮助"""
         dialog = HelpDialog(self)
-        dialog.exec()
+        dialog.exec_()
 
     def show_about(self):
         """显示关于"""
-        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
+        from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
                                       QPushButton, QLabel)
-        from PyQt6.QtGui import QFont
+        from PyQt5.QtGui import QFont
         dialog = QDialog(self)
         dialog.setWindowTitle('关于')
         dialog.setFixedSize(420, 280)
@@ -490,11 +490,11 @@ class MainWindow(QMainWindow):
         title_font.setPointSize(16)
         title_font.setBold(True)
         title.setFont(title_font)
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title.setAlignment(Qt.AlignCenter)
         layout.addWidget(title)
 
         ver = QLabel('版本 2.0')
-        ver.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        ver.setAlignment(Qt.AlignCenter)
         ver.setStyleSheet('color: #7f8c8d; margin-bottom: 10px;')
         layout.addWidget(ver)
 
@@ -502,13 +502,13 @@ class MainWindow(QMainWindow):
             '用于导入 Excel/CSV 表格，进行描述性统计、数据质量检测、\n'
             '对比分析、多表合并、数据清洗，输出 Excel 报表和 Word 报告。'
         )
-        desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        desc.setAlignment(Qt.AlignCenter)
         desc.setWordWrap(True)
         desc.setStyleSheet('color: #2c3e50; margin: 10px 0;')
         layout.addWidget(desc)
 
-        tech = QLabel('技术栈: PyQt6 · pandas · openpyxl · python-docx · matplotlib')
-        tech.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        tech = QLabel('技术栈: PyQt5 · pandas · openpyxl · python-docx · matplotlib')
+        tech.setAlignment(Qt.AlignCenter)
         tech.setStyleSheet('color: #95a5a6; font-size: 11px;')
         layout.addWidget(tech)
 
@@ -525,4 +525,4 @@ class MainWindow(QMainWindow):
         layout.addLayout(btn_layout)
 
         dialog.setLayout(layout)
-        dialog.exec()
+        dialog.exec_()

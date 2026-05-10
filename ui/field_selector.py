@@ -1,8 +1,8 @@
 """字段选择组件"""
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QListWidget, QListWidgetItem, QPushButton)
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QDragEnterEvent, QDropEvent, QColor
+from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtGui import QDragEnterEvent, QDropEvent, QColor
 import pandas as pd
 import numpy as np
 from typing import Dict, List, Any
@@ -75,9 +75,9 @@ class FieldSelector(QWidget):
                 text = f'{col}{type_tag}{missing_tag}'
 
                 item = QListWidgetItem(text)
-                item.setData(Qt.ItemDataRole.UserRole, col)
-                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-                item.setCheckState(Qt.CheckState.Checked)
+                item.setData(Qt.UserRole, col)
+                item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+                item.setCheckState(Qt.Checked)
                 if is_num:
                     item.setForeground(QColor('#2c3e50'))
                 else:
@@ -97,7 +97,7 @@ class FieldSelector(QWidget):
         """点击行任意位置切换复选框"""
         current = item.checkState()
         item.setCheckState(
-            Qt.CheckState.Unchecked if current == Qt.CheckState.Checked else Qt.CheckState.Checked
+            Qt.Unchecked if current == Qt.Checked else Qt.Checked
         )
 
     def _notify_selection(self):
@@ -106,18 +106,18 @@ class FieldSelector(QWidget):
 
     def select_all(self):
         for i in range(self.field_list.count()):
-            self.field_list.item(i).setCheckState(Qt.CheckState.Checked)
+            self.field_list.item(i).setCheckState(Qt.Checked)
 
     def deselect_all(self):
         for i in range(self.field_list.count()):
-            self.field_list.item(i).setCheckState(Qt.CheckState.Unchecked)
+            self.field_list.item(i).setCheckState(Qt.Unchecked)
 
     def get_selected_columns(self) -> List[str]:
         items = []
         for i in range(self.field_list.count()):
             item = self.field_list.item(i)
-            if item.checkState() == Qt.CheckState.Checked:
-                items.append(item.data(Qt.ItemDataRole.UserRole))
+            if item.checkState() == Qt.Checked:
+                items.append(item.data(Qt.UserRole))
         return items
 
     def get_column_info(self, col: str) -> Dict[str, Any]:

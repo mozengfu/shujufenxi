@@ -1,6 +1,7 @@
 """导入对话框"""
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
+from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
                               QLabel, QListWidget, QFileDialog)
+from PyQt5.QtCore import Qt
 
 
 class ImportDialog(QDialog):
@@ -27,7 +28,7 @@ class ImportDialog(QDialog):
         # 文件列表
         self.file_list = QListWidget()
         if self.multi_select:
-            self.file_list.setSelectionMode(QListWidget.SelectionMode.MultiSelection)
+            self.file_list.setSelectionMode(Qt.MultiSelection)
         layout.addWidget(self.file_list)
 
         # 按钮

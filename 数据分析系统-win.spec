@@ -1,7 +1,16 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""PyInstaller 打包配置 — 数据分析系统 (ONEDIR 模式)
+"""PyInstaller 打包配置 — 数据分析系统 (Windows ONEDIR 模式)
 
-文件分散在 .app 包内，不被 macOS 安全机制拦截。
+用法（必须在 Windows 上执行）：
+    pip install pyinstaller PyQt5 pandas openpyxl python-docx matplotlib
+    pyinstaller 数据分析系统-win.spec
+
+打包产物：dist/数据分析系统/数据分析系统.exe
+
+注意事项：
+- Windows Server 2016 等服务器系统需要安装 MSVC 运行库
+  下载地址：https://aka.ms/vs/17/release/vc_redist.x64.exe
+  或在打包时添加 --win-private-assemblies 参数将运行库打包进 exe
 """
 import sys
 import PyQt5
@@ -16,9 +25,10 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[
-        (qt_plugins, 'plugins'),
+        (qt_plugins, 'PyQt5/Qt5/plugins'),
     ],
     hiddenimports=[
+        'PyQt5.sip',
         'matplotlib.backends.backend_qtagg',
         'matplotlib.backends.backend_agg',
     ],
@@ -56,10 +66,10 @@ a = Analysis(
 )
 pyz = PYZ(a.pure)
 
-# ONEDIR 模式：exe 只是启动器，不嵌入数据
 exe = EXE(
     pyz,
     a.scripts,
+    [],
     exclude_binaries=True,
     name='数据分析系统',
     debug=False,
@@ -68,31 +78,16 @@ exe = EXE(
     upx=False,
     console=False,
     disable_windowed_traceback=False,
-    argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
 )
 
-# 收集所有二进制和数据文件到目录
 coll = COLLECT(
     exe,
     a.binaries,
     a.datas,
     strip=False,
     upx=False,
-    upx_exclude=[],
     name='数据分析系统',
-)
-
-app = BUNDLE(
-    coll,
-    name='数据分析系统.app',
-    icon='icon.icns',
-    bundle_identifier='com.dataanalyzer.app',
-    info_plist={
-        'CFBundleDisplayName': '数据分析系统',
-        'CFBundleShortVersionString': '1.0.0',
-        'NSHighResolutionCapable': True,
-    },
 )

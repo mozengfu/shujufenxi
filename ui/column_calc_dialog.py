@@ -2,7 +2,7 @@
 import re
 import pandas as pd
 import numpy as np
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
+from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
                               QLabel, QLineEdit, QPushButton, QListWidget,
                               QTableWidget, QTableWidgetItem, QHeaderView,
                               QGroupBox, QMessageBox)
@@ -191,7 +191,7 @@ class ColumnCalcDialog(QDialog):
                 text = '' if pd.isna(value) else str(value)
                 self.preview_table.setItem(i, j, QTableWidgetItem(text))
 
-        self.preview_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.preview_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
 
     def get_result(self) -> Optional[pd.DataFrame]:
         """获取包含新列的 DataFrame"""

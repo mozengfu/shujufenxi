@@ -1,10 +1,10 @@
 """自定义报表设计器 UI"""
 import json
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QSplitter,
+from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QSplitter,
                               QListWidget, QListWidgetItem, QPushButton,
                               QLabel, QMessageBox, QFileDialog, QWidget,
                               QAbstractItemView)
-from PyQt6.QtCore import Qt, QSettings
+from PyQt5.QtCore import Qt, QSettings
 
 import pandas as pd
 from core.report_builder import ReportConfig, ReportSection, ReportGenerator
@@ -47,7 +47,7 @@ class ReportDesigner(QDialog):
         layout = QVBoxLayout()
 
         # 主区域：两栏布局
-        splitter = QSplitter(Qt.Orientation.Horizontal)
+        splitter = QSplitter(Qt.Horizontal)
 
         # 左侧：可用内容
         left_widget = QWidget()
@@ -57,7 +57,7 @@ class ReportDesigner(QDialog):
         self.available_list = QListWidget()
         for stype, sname in AVAILABLE_SECTIONS:
             item = QListWidgetItem(sname)
-            item.setData(Qt.ItemDataRole.UserRole, stype)
+            item.setData(Qt.UserRole, stype)
             self.available_list.addItem(item)
         self.available_list.itemDoubleClicked.connect(self._add_section)
         left_layout.addWidget(self.available_list)
@@ -74,7 +74,7 @@ class ReportDesigner(QDialog):
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.addWidget(QLabel('已选章节（双击编辑标题）'))
         self.section_list = QListWidget()
-        self.section_list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.section_list.setSelectionMode(QAbstractItemView.SingleSelection)
         self.section_list.itemDoubleClicked.connect(self._edit_section_title)
         right_layout.addWidget(self.section_list)
 
@@ -130,7 +130,7 @@ class ReportDesigner(QDialog):
 
     def _add_section(self, item: QListWidgetItem):
         """双击左侧添加章节"""
-        stype = item.data(Qt.ItemDataRole.UserRole)
+        stype = item.data(Qt.UserRole)
         sname = item.text()
         section = ReportSection(section_type=stype, title=sname)
         self.config.sections.append(section)
@@ -171,7 +171,7 @@ class ReportDesigner(QDialog):
         """双击编辑章节标题"""
         row = self.section_list.currentRow()
         if row >= 0 and row < len(self.config.sections):
-            from PyQt6.QtWidgets import QInputDialog
+            from PyQt5.QtWidgets import QInputDialog
             new_title, ok = QInputDialog.getText(
                 self, '编辑标题', '请输入新标题:',
                 text=self.config.sections[row].title
@@ -186,7 +186,7 @@ class ReportDesigner(QDialog):
         for i, section in enumerate(self.config.sections):
             text = f'{i+1}. [{section.section_type}] {section.title}'
             item = QListWidgetItem(text)
-            item.setData(Qt.ItemDataRole.UserRole, i)
+            item.setData(Qt.UserRole, i)
             self.section_list.addItem(item)
 
     def _export_word(self):
@@ -250,7 +250,7 @@ class ReportDesigner(QDialog):
             QMessageBox.warning(self, '警告', '没有章节可保存')
             return
 
-        from PyQt6.QtWidgets import QInputDialog
+        from PyQt5.QtWidgets import QInputDialog
         name, ok = QInputDialog.getText(self, '保存模板', '模板名称:')
         if ok and name:
             try:
@@ -273,7 +273,7 @@ class ReportDesigner(QDialog):
             return
 
         names = list(templates_data.keys())
-        from PyQt6.QtWidgets import QInputDialog
+        from PyQt5.QtWidgets import QInputDialog
         name, ok = QInputDialog.getItem(self, '加载模板', '选择模板:', names, 0, False)
         if ok and name:
             self.config = ReportConfig.from_dict(templates_data[name])

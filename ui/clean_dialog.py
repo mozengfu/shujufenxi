@@ -1,5 +1,5 @@
 """数据清洗对话框"""
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QGridLayout,
+from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QGridLayout,
                               QGroupBox, QComboBox, QLabel, QLineEdit,
                               QPushButton, QRadioButton, QButtonGroup,
                               QTableWidget, QTableWidgetItem, QHeaderView,
@@ -58,7 +58,7 @@ class CleanDialog(QDialog):
         result_layout = QVBoxLayout()
         self.result_table = QTableWidget()
         self.result_table.setMaximumHeight(180)
-        self.result_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.result_table.setEditTriggers(QTableWidget.NoEditTriggers)
         result_layout.addWidget(self.result_table)
         result_group.setLayout(result_layout)
         main_layout.addWidget(result_group)
@@ -300,7 +300,7 @@ class CleanDialog(QDialog):
                 text = '' if pd.isna(value) else str(value)
                 self.result_table.setItem(i, j, QTableWidgetItem(text))
 
-        self.result_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.result_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
 
     def do_type_convert(self):
         """执行类型转换"""

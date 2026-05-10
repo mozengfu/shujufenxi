@@ -1,11 +1,11 @@
 """分析面板模块"""
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
                               QTableWidget, QTableWidgetItem, QLabel, QComboBox,
                               QGroupBox, QTextEdit, QTabWidget, QHeaderView,
                               QPushButton, QMessageBox, QListWidget,
                               QListWidgetItem, QLineEdit)
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QDragEnterEvent, QDropEvent
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QDragEnterEvent, QDropEvent
 import pandas as pd
 import numpy as np
 from typing import Dict, Any, List
@@ -344,7 +344,7 @@ class AnalysisPanel(QWidget):
             self.group_combo.addItem(col)
             item = self.group_combo.model().item(self.group_combo.count() - 1, 0)
             item.setCheckable(True)
-            item.setCheckState(Qt.CheckState.Unchecked)
+            item.setCheckState(Qt.Unchecked)
 
         # 聚合值列（显示所有列）
         self.agg_col_combo.clear()
@@ -385,7 +385,7 @@ class AnalysisPanel(QWidget):
                     text = _fmt_value(value)
                 self.preview_table.setItem(i, j, QTableWidgetItem(text))
 
-        self.preview_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.preview_table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
         self.preview_table.setSortingEnabled(True)
         total_rows = len(df)
         shown = min(100, total_rows)
@@ -449,8 +449,8 @@ class AnalysisPanel(QWidget):
         if item is not None:
             current = item.checkState()
             item.setCheckState(
-                Qt.CheckState.Unchecked if current == Qt.CheckState.Checked
-                else Qt.CheckState.Checked
+                Qt.Unchecked if current == Qt.Checked
+                else Qt.Checked
             )
 
     def on_analysis_type_changed(self, analysis_type: str):
@@ -481,7 +481,7 @@ class AnalysisPanel(QWidget):
         model = self.group_combo.model()
         for i in range(self.group_combo.count()):
             item = model.item(i, 0)
-            if item.checkState() == Qt.CheckState.Checked:
+            if item.checkState() == Qt.Checked:
                 cols.append(item.text())
         return cols
 
@@ -508,13 +508,13 @@ class AnalysisPanel(QWidget):
         for i, item in enumerate(self.agg_items):
             text = f"{item['col']} - {item['func']}"
             list_item = QListWidgetItem(text)
-            list_item.setData(Qt.ItemDataRole.UserRole, i)
+            list_item.setData(Qt.UserRole, i)
             list_item.setToolTip('双击移除')
             self.agg_list_widget.addItem(list_item)
 
     def on_agg_item_double_clicked(self, item: QListWidgetItem):
         """双击聚合项移除"""
-        index = item.data(Qt.ItemDataRole.UserRole)
+        index = item.data(Qt.UserRole)
         if 0 <= index < len(self.agg_items):
             self.agg_items.pop(index)
             self.update_agg_list_widget()
@@ -557,13 +557,13 @@ class AnalysisPanel(QWidget):
         for i, cond in enumerate(self.condition_items):
             text = f"{cond['col']} {cond['op']} {cond['value']}"
             list_item = QListWidgetItem(text)
-            list_item.setData(Qt.ItemDataRole.UserRole, i)
+            list_item.setData(Qt.UserRole, i)
             list_item.setToolTip('双击移除')
             self.filter_list_widget.addItem(list_item)
 
     def on_filter_item_double_clicked(self, item: QListWidgetItem):
         """双击筛选条件移除"""
-        index = item.data(Qt.ItemDataRole.UserRole)
+        index = item.data(Qt.UserRole)
         if 0 <= index < len(self.condition_items):
             self.condition_items.pop(index)
             self.update_filter_list_widget()
@@ -579,7 +579,7 @@ class AnalysisPanel(QWidget):
         # 清空分组列选择
         model = self.group_combo.model()
         for i in range(self.group_combo.count()):
-            model.item(i, 0).setCheckState(Qt.CheckState.Unchecked)
+            model.item(i, 0).setCheckState(Qt.Unchecked)
         # 清空结果表格
         self.stats_table.clear()
         self.compare_table.clear()
@@ -822,7 +822,7 @@ class AnalysisPanel(QWidget):
                 text = _fmt_value(value)
                 self.stats_table.setItem(i, j + 1, QTableWidgetItem(text))
 
-        self.stats_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.stats_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.stats_table.setSortingEnabled(True)
 
     def show_quality_report(self, report: Dict[str, Any]):
@@ -879,7 +879,7 @@ class AnalysisPanel(QWidget):
                 text = _fmt_value(value)
                 self.compare_table.setItem(i, j, QTableWidgetItem(text))
 
-        self.compare_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.compare_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.compare_table.setSortingEnabled(True)
 
     def show_freq_table(self, freq: pd.DataFrame):
@@ -905,7 +905,7 @@ class AnalysisPanel(QWidget):
                     text = _fmt_value(value)
                 self.freq_table.setItem(i, j, QTableWidgetItem(text))
 
-        self.freq_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.freq_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.freq_table.setSortingEnabled(True)
 
         self.last_result_df = freq

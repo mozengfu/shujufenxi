@@ -1,6 +1,6 @@
 """帮助对话框"""
-from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QTextBrowser, QPushButton, QHBoxLayout
-from PyQt6.QtGui import QFont
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, QTextBrowser, QPushButton, QHBoxLayout
+from PyQt5.QtGui import QFont
 
 
 class HelpDialog(QDialog):
