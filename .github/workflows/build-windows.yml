@@ -114,13 +114,15 @@ jobs:
 
       - name: List build output
         run: |
-          Write-Output "=== Root of build output ==="
-          Get-ChildItem dist\数据分析系统 -Name | Select-Object -First 30
-          Write-Output "=== vc_dlls in build ==="
-          Get-ChildItem dist\数据分析系统\vcruntime*.dll, dist\数据分析系统\msvcp140*.dll, dist\数据分析系统\concrt140.dll -Name -ErrorAction SilentlyContinue
-          Write-Output "=== hook in build ==="
-          Get-ChildItem dist\数据分析系统\hook*.py* -Name -ErrorAction SilentlyContinue
+          Write-Output "=== Build output ==="
+          Get-ChildItem dist\* -Directory -Name
+          $distDir = Get-ChildItem dist\* -Directory | Select-Object -First 1 -ExpandProperty Name
+          Write-Output "=== Top-level files ==="
+          Get-ChildItem "dist\$distDir" -Name | Select-Object -First 30
+          Write-Output "=== MSVC DLLs ==="
+          Get-ChildItem "dist\$distDir\vcruntime*.dll", "dist\$distDir\msvcp140*.dll" -Name -ErrorAction SilentlyContinue
         shell: powershell
+        continue-on-error: true
 
       - name: Create installer with Inno Setup
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.5
@@ -135,14 +137,16 @@ jobs:
           path: Output/shujufenxi-setup.exe
 
       - name: Upload zip fallback
-        run: Compress-Archive -Path dist\数据分析系统\* -DestinationPath 数据分析系统.zip
+        run: |
+          $distDir = Get-ChildItem dist\* -Directory | Select-Object -First 1 -ExpandProperty FullName
+          Compress-Archive -Path "$distDir\*" -DestinationPath shujufenxi.zip
         shell: powershell
 
       - name: Upload zip
         uses: actions/upload-artifact@v4
         with:
           name: 数据分析系统-zip
-          path: 数据分析系统.zip
+          path: shujufenxi.zip
 
       - name: Upload to Release (if tag)
         if: startsWith(github.ref, 'refs/tags/')
@@ -150,4 +154,4 @@ jobs:
         with:
           files: |
             Output/shujufenxi-setup.exe
-            数据分析系统.zip
+            shujufenxi.zip
