@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
-from core.analyzer import make_total_row, is_percent_col
+from core.analyzer import make_total_row, is_percent_col, _is_numeric
 
 
 class ExcelExporter:
@@ -75,7 +75,7 @@ class ExcelExporter:
 
         # 占比列格式化为百分字符串（数据行 + 合计行）
         for col in export_df.columns:
-            if is_percent_col(col) and pd.api.types.is_numeric_dtype(export_df[col]):
+            if is_percent_col(col) and _is_numeric(export_df[col]):
                 export_df[col] = export_df[col].apply(
                     lambda x: f'{x:.2f}%' if pd.notna(x) else ''
                 )

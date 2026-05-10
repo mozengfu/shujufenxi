@@ -23,6 +23,14 @@ AGG_FUNCTIONS = {
     '行数': ('size', None),
 }
 
+def _is_numeric(series: pd.Series) -> bool:
+    """判断 Series 是否为数值的，兼容 numpy dtype 和 pandas 扩展 dtype（如 StringDtype）。"""
+    try:
+        return np.issubdtype(series.dtype, np.number)
+    except TypeError:
+        return False
+
+
 # 适用于数值类型的聚合函数
 NUMERIC_AGGS = ['计数', '去重计数', '求和', '平均值', '中位数', '最大值', '最小值', '标准差', '占比', '累计占比', '排名', '百分位排名', '行数']
 
@@ -69,7 +77,7 @@ def make_total_row(df: pd.DataFrame, agg_items: list = None) -> pd.Series:
                 totals.append(df[col].sum())
         elif is_percent_col(col):
             totals.append(100.0 if col == '占比%' else '-')
-        elif np.issubdtype(df[col].dtype, np.number):
+        elif _is_numeric(df[col]):
             totals.append(df[col].sum())
         elif j == 0:
             totals.append('合计')
@@ -128,7 +136,7 @@ class DataAnalyzer:
         if group_col not in df.columns or value_col not in df.columns:
             raise ValueError(f"列不存在: {group_col} 或 {value_col}")
 
-        if not np.issubdtype(df[value_col].dtype, np.number):
+        if not _is_numeric(df[value_col]):
             return df.groupby(group_col)[value_col].agg(['count']).round(2)
 
         return df.groupby(group_col)[value_col].agg(['count', 'sum', 'mean', 'std']).round(2)
@@ -327,7 +335,7 @@ class DataAnalyzer:
                     continue
 
                 # 检查是否为数值的列（占比、累计占比只能在数值列上计算）
-                is_numeric = np.issubdtype(df[col].dtype, np.number)
+                is_numeric = _is_numeric(df[col])
 
                 # 计算该列的总和/累计等用于基准计算
                 if func_type == '占比':
@@ -476,7 +484,7 @@ class DataAnalyzer:
 
                 # 尝试将 value 转换为列的实际类型
                 actual_value = value
-                if np.issubdtype(df[col].dtype, np.number) and isinstance(value, str):
+                if _is_numeric(df[col]) and isinstance(value, str):
                     try:
                         actual_value = float(value) if '.' in value else int(value)
                     except ValueError:
@@ -559,7 +567,7 @@ class DataAnalyzer:
 
                 # 尝试将 value 转换为列的实际类型
                 actual_value = value
-                if np.issubdtype(df[cond_col].dtype, np.number) and isinstance(value, str):
+                if _is_numeric(df[cond_col]) and isinstance(value, str):
                     try:
                         actual_value = float(value) if '.' in value else int(value)
                     except ValueError:
@@ -612,7 +620,7 @@ class DataAnalyzer:
 
             # 计算占比（行数按组总数时不需要数值列，其他模式需要数值列做求和）
             is_size_percent = func_type == 'size' and show_percent
-            if show_percent and (is_size_percent or np.issubdtype(df[col].dtype, np.number)):
+            if show_percent and (is_size_percent or _is_numeric(df[col])):
                 percent_mode = item.get('percent_mode', 'column')
                 percent_alias = f'{alias}占比'
                 if percent_mode == 'group':
