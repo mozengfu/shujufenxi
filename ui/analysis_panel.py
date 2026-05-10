@@ -3,7 +3,8 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
                               QTableWidget, QTableWidgetItem, QLabel, QComboBox,
                               QGroupBox, QTextEdit, QTabWidget, QHeaderView,
                               QPushButton, QMessageBox, QListWidget,
-                              QListWidgetItem, QLineEdit)
+                              QListWidgetItem, QLineEdit, QDialog, QFormLayout,
+                              QCheckBox)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QDragEnterEvent, QDropEvent
 import pandas as pd
@@ -13,7 +14,7 @@ from typing import Dict, Any, List
 from .field_selector import FieldSelector
 from .chart_widget import ChartWidget
 from core import TableImporter
-from core.analyzer import AGG_FUNCTIONS
+from core.analyzer import AGG_FUNCTIONS, make_total_row, is_percent_col
 
 
 def _fmt_value(value) -> str:
@@ -37,6 +38,130 @@ def _fmt_percent(value) -> str:
         return f'{float(value):.2f}%'
     except (ValueError, TypeError):
         return str(value)
+
+
+class AggItemDialog(QDialog):
+    """聚合项配置对话框：支持自定义列名、筛选条件、占比"""
+
+    def __init__(self, df: pd.DataFrame, parent=None):
+        super().__init__(parent)
+        self.df = df
+        self.setWindowTitle('聚合项配置')
+        self.resize(400, 350)
+        self.init_ui()
+
+    def init_ui(self):
+        layout = QFormLayout()
+
+        # 值列
+        self.col_combo = QComboBox()
+        self.col_combo.addItems([str(c) for c in self.df.columns])
+        layout.addRow('值列:', self.col_combo)
+
+        # 聚合函数
+        self.func_combo = QComboBox()
+        self.func_combo.addItems(list(AGG_FUNCTIONS.keys()))
+        layout.addRow('聚合:', self.func_combo)
+
+        # 自定义列名
+        self.alias_edit = QLineEdit()
+        self.alias_edit.setPlaceholderText('留空则自动生成')
+        layout.addRow('自定义列名:', self.alias_edit)
+
+        # 显示占比
+        self.show_percent_cb = QCheckBox('显示占比（该列总值的百分比）')
+        layout.addRow('', self.show_percent_cb)
+
+        # 百分比模式选择
+        self.percent_mode_combo = QComboBox()
+        self.percent_mode_combo.addItems(['按列总计', '按组总数'])
+        self.percent_mode_combo.setVisible(False)
+        self.show_percent_cb.toggled.connect(self.percent_mode_combo.setVisible)
+        layout.addRow('占比基准:', self.percent_mode_combo)
+
+        # 筛选条件区域
+        cond_group = QGroupBox('筛选条件（可选，留空表示不过滤）')
+        cond_layout = QVBoxLayout()
+
+        self.cond_col_combo = QComboBox()
+        self.cond_col_combo.addItems([str(c) for c in self.df.columns])
+        self.cond_col_combo.insertItem(0, '-- 不筛选 --')
+
+        self.cond_op_combo = QComboBox()
+        self.cond_op_combo.addItems(['>', '<', '==', '!=', '>=', '<=', '包含'])
+
+        self.cond_value_edit = QLineEdit()
+        self.cond_value_edit.setPlaceholderText('筛选值')
+
+        cond_row_layout = QHBoxLayout()
+        cond_row_layout.addWidget(self.cond_col_combo)
+        cond_row_layout.addWidget(self.cond_op_combo)
+        cond_row_layout.addWidget(self.cond_value_edit)
+        cond_layout.addLayout(cond_row_layout)
+
+        self.cond_list_widget = QListWidget()
+        self.cond_list_widget.setMinimumHeight(40)
+        self.cond_list_widget.itemDoubleClicked.connect(self._remove_cond)
+        cond_layout.addWidget(self.cond_list_widget)
+
+        add_cond_btn = QPushButton('添加条件')
+        add_cond_btn.clicked.connect(self._add_cond)
+        cond_layout.addWidget(add_cond_btn)
+
+        cond_group.setLayout(cond_layout)
+        layout.addRow('', cond_group)
+
+        # 按钮
+        btn_layout = QHBoxLayout()
+        ok_btn = QPushButton('确定')
+        ok_btn.clicked.connect(self.accept)
+        cancel_btn = QPushButton('取消')
+        cancel_btn.clicked.connect(self.reject)
+        btn_layout.addWidget(ok_btn)
+        btn_layout.addWidget(cancel_btn)
+        layout.addRow('', btn_layout)
+
+        self.setLayout(layout)
+        self.conditions: List[Dict] = []
+
+    def _add_cond(self):
+        col = self.cond_col_combo.currentText()
+        if col == '-- 不筛选 --':
+            return
+        op = self.cond_op_combo.currentText()
+        value = self.cond_value_edit.text()
+        if not value:
+            QMessageBox.warning(self, '警告', '请输入筛选值')
+            return
+        self.conditions.append({'col': col, 'op': op, 'value': value})
+        self.cond_list_widget.addItem(f'{col} {op} {value}')
+        self.cond_value_edit.clear()
+
+    def _remove_cond(self, item: QListWidgetItem):
+        idx = self.cond_list_widget.row(item)
+        if 0 <= idx < len(self.conditions):
+            self.conditions.pop(idx)
+            self.cond_list_widget.takeItem(idx)
+
+    def get_result(self) -> Dict[str, Any]:
+        col = self.col_combo.currentText()
+        func = self.func_combo.currentText()
+        alias = self.alias_edit.text().strip() or f'{col}-{func}'
+        show_percent = self.show_percent_cb.isChecked()
+        percent_mode = 'group' if self.percent_mode_combo.currentText() == '按组总数' else 'column'
+
+        condition_dict = {}
+        for cond in self.conditions:
+            condition_dict[cond['col']] = (cond['op'], cond['value'])
+
+        return {
+            'col': col,
+            'func': func,
+            'alias': alias,
+            'show_percent': show_percent,
+            'percent_mode': percent_mode,
+            'condition': condition_dict if condition_dict else None
+        }
 
 
 class AnalysisPanel(QWidget):
@@ -372,18 +497,28 @@ class AnalysisPanel(QWidget):
         rows = min(100, len(df))
         cols = len(df.columns)
 
-        self.preview_table.setRowCount(rows)
+        self.preview_table.setRowCount(rows + 1)
         self.preview_table.setColumnCount(cols)
         self.preview_table.setHorizontalHeaderLabels([str(c) for c in df.columns])
 
         for i in range(rows):
             for j, col_name in enumerate(df.columns):
                 value = df.iloc[i, j]
-                if col_name in ('占比%', '累计占比%'):
+                if is_percent_col(col_name):
                     text = _fmt_percent(value)
                 else:
                     text = _fmt_value(value)
                 self.preview_table.setItem(i, j, QTableWidgetItem(text))
+
+        # 合计行
+        total_row = make_total_row(df)
+        for j, col_name in enumerate(df.columns):
+            item = QTableWidgetItem(_fmt_value(total_row.iloc[j]))
+            font = item.font()
+            font.setBold(True)
+            item.setFont(font)
+            item.setFlags(item.flags() & ~Qt.ItemIsEnabled)
+            self.preview_table.setItem(rows, j, item)
 
         self.preview_table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
         self.preview_table.setSortingEnabled(True)
@@ -486,27 +621,43 @@ class AnalysisPanel(QWidget):
         return cols
 
     def add_aggregation_item(self):
-        """添加聚合项"""
-        col = self.agg_col_combo.currentText()
-        func = self.agg_func_combo.currentText()
-        alias = f'{col}-{func}'
+        """添加聚合项（弹出配置对话框）"""
+        if self.current_df is None or self.current_df.empty:
+            QMessageBox.warning(self, '警告', '请先导入数据')
+            return
 
-        # 检查是否已存在
-        for item in self.agg_items:
-            if item['col'] == col and item['func'] == func:
-                QMessageBox.warning(self, '警告', '该聚合项已存在')
-                return
+        dialog = AggItemDialog(self.current_df, self)
+        if dialog.exec_() == QDialog.Accepted:
+            result = dialog.get_result()
 
-        agg_item = {'col': col, 'func': func, 'alias': alias}
-        self.agg_items.append(agg_item)
+            # 检查是否已存在相同别名
+            for item in self.agg_items:
+                if item.get('alias') == result['alias']:
+                    QMessageBox.warning(self, '警告', f'列名 "{result["alias"]}" 已存在')
+                    return
 
-        self.update_agg_list_widget()
+            self.agg_items.append(result)
+            self.update_agg_list_widget()
 
     def update_agg_list_widget(self):
         """更新聚合项列表显示"""
         self.agg_list_widget.clear()
         for i, item in enumerate(self.agg_items):
-            text = f"{item['col']} - {item['func']}"
+            col = item['col']
+            func = item['func']
+            alias = item.get('alias', f'{col}-{func}')
+            conditions = item.get('condition') or {}
+            show_percent = item.get('show_percent', False)
+            percent_mode = item.get('percent_mode', 'column')
+
+            parts = [f'{col} - {func} [{alias}]']
+            for cond_col, (op, val) in conditions.items():
+                parts.append(f'{cond_col}{op}{val}')
+            if show_percent:
+                mode_label = '组' if percent_mode == 'group' else '列'
+                parts.append(f'占比:{mode_label}')
+
+            text = '  '.join(parts)
             list_item = QListWidgetItem(text)
             list_item.setData(Qt.UserRole, i)
             list_item.setToolTip('双击移除')
@@ -672,7 +823,6 @@ class AnalysisPanel(QWidget):
 
     def run_group_analysis(self):
         """执行分组分析"""
-        # 获取选中的分组列
         group_cols = self._get_group_columns()
 
         if not group_cols:
@@ -685,10 +835,20 @@ class AnalysisPanel(QWidget):
 
         analyzer = self.main_window.analyzer
 
-        # 执行聚合
-        result = analyzer.aggregate_with_custom_funcs(
-            self.current_df, group_cols, self.agg_items
+        # 判断是否有多条件项（condition 或 show_percent）
+        has_multi_cond = any(
+            item.get('condition') or item.get('show_percent')
+            for item in self.agg_items
         )
+
+        if has_multi_cond:
+            result = analyzer.multi_conditional_aggregate(
+                self.current_df, group_cols, self.agg_items
+            )
+        else:
+            result = analyzer.aggregate_with_custom_funcs(
+                self.current_df, group_cols, self.agg_items
+            )
 
         if result.empty:
             QMessageBox.information(self, '提示', '无法进行分组分析')
@@ -697,7 +857,6 @@ class AnalysisPanel(QWidget):
         self.tab_widget.setCurrentWidget(self.compare_tab)
         self.show_compare_table(result)
 
-        # 图表：分组柱状图
         numeric_cols = result.select_dtypes(include=[np.number]).columns.tolist()
         if group_cols and numeric_cols:
             self.chart_widget.draw_grouped_bar(result, group_cols[0], numeric_cols)
@@ -725,14 +884,12 @@ class AnalysisPanel(QWidget):
 
     def run_comprehensive_analysis(self):
         """执行综合分析（分组 + 频次）"""
-        # 获取选中的分组列
         group_cols = self._get_group_columns()
 
         if not group_cols:
             QMessageBox.warning(self, '警告', '请选择至少一个分组列')
             return
 
-        # 获取选中的值列（字段选择区）
         selected_columns = self.field_selector.get_selected_columns()
         if not selected_columns:
             selected_columns = []
@@ -742,9 +899,18 @@ class AnalysisPanel(QWidget):
         # 1. 分组聚合结果
         group_result = None
         if self.agg_items:
-            group_result = analyzer.aggregate_with_custom_funcs(
-                self.current_df, group_cols, self.agg_items
+            has_multi_cond = any(
+                item.get('condition') or item.get('show_percent')
+                for item in self.agg_items
             )
+            if has_multi_cond:
+                group_result = analyzer.multi_conditional_aggregate(
+                    self.current_df, group_cols, self.agg_items
+                )
+            else:
+                group_result = analyzer.aggregate_with_custom_funcs(
+                    self.current_df, group_cols, self.agg_items
+                )
 
         # 2. 频次分析结果（基于分组列）
         freq_result = analyzer.frequency_analysis(self.current_df, group_cols)
@@ -869,15 +1035,32 @@ class AnalysisPanel(QWidget):
         rows = len(stats)
         cols = len(stats.columns)
 
-        self.compare_table.setRowCount(rows)
+        self.compare_table.setRowCount(rows + 1)
         self.compare_table.setColumnCount(cols)
         self.compare_table.setHorizontalHeaderLabels([str(c) for c in stats.columns])
 
         for i in range(rows):
             for j, col in enumerate(stats.columns):
                 value = stats.iloc[i, j]
-                text = _fmt_value(value)
+                if is_percent_col(col):
+                    text = _fmt_percent(value)
+                else:
+                    text = _fmt_value(value)
                 self.compare_table.setItem(i, j, QTableWidgetItem(text))
+
+        # 合计行
+        total_row = make_total_row(stats, self.agg_items)
+        for j, col in enumerate(stats.columns):
+            if is_percent_col(col):
+                text = _fmt_percent(total_row.iloc[j])
+            else:
+                text = _fmt_value(total_row.iloc[j])
+            item = QTableWidgetItem(text)
+            font = item.font()
+            font.setBold(True)
+            item.setFont(font)
+            item.setFlags(item.flags() & ~Qt.ItemIsEnabled)
+            self.compare_table.setItem(rows, j, item)
 
         self.compare_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.compare_table.setSortingEnabled(True)
@@ -892,18 +1075,34 @@ class AnalysisPanel(QWidget):
         rows = len(freq)
         cols = len(freq.columns)
 
-        self.freq_table.setRowCount(rows)
+        self.freq_table.setRowCount(rows + 1)
         self.freq_table.setColumnCount(cols)
         self.freq_table.setHorizontalHeaderLabels([str(c) for c in freq.columns])
 
         for i in range(rows):
             for j, col in enumerate(freq.columns):
                 value = freq.iloc[i, j]
-                if col in ('占比%', '累计占比%'):
+                if is_percent_col(col):
                     text = _fmt_percent(value)
                 else:
                     text = _fmt_value(value)
                 self.freq_table.setItem(i, j, QTableWidgetItem(text))
+
+        # 合计行
+        total_row = make_total_row(freq)
+        # 频次列特殊处理：显示总和
+        # 占比%列设为100，累计占比%取最后值
+        for j, col in enumerate(freq.columns):
+            if col == '占比%':
+                total_row.iloc[j] = 100.0
+            elif col == '累计占比%' and len(freq) > 0:
+                total_row.iloc[j] = freq[col].iloc[-1]
+            item = QTableWidgetItem(_fmt_value(total_row.iloc[j]))
+            font = item.font()
+            font.setBold(True)
+            item.setFont(font)
+            item.setFlags(item.flags() & ~Qt.ItemIsEnabled)
+            self.freq_table.setItem(rows, j, item)
 
         self.freq_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.freq_table.setSortingEnabled(True)

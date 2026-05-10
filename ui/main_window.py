@@ -423,7 +423,7 @@ class MainWindow(QMainWindow):
         )
         if file_path:
             try:
-                self.exporter.export_with_format(export_df, file_path)
+                self.exporter.export_with_format(export_df, file_path, agg_items=self.analysis_panel.agg_items)
                 QMessageBox.information(self, '成功', f'已导出到 {file_path}')
             except Exception as e:
                 QMessageBox.critical(self, '错误', str(e))

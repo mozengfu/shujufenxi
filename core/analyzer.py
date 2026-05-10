@@ -20,10 +20,62 @@ AGG_FUNCTIONS = {
     '累计占比': ('cumpercent', None),
     '排名': ('rank', None),
     '百分位排名': ('pct_rank', None),
+    '行数': ('size', None),
 }
 
 # 适用于数值类型的聚合函数
-NUMERIC_AGGS = ['计数', '去重计数', '求和', '平均值', '中位数', '最大值', '最小值', '标准差', '占比', '累计占比', '排名', '百分位排名']
+NUMERIC_AGGS = ['计数', '去重计数', '求和', '平均值', '中位数', '最大值', '最小值', '标准差', '占比', '累计占比', '排名', '百分位排名', '行数']
+
+
+def is_percent_col(col_name: str) -> bool:
+    """判断列名是否应该以百分比格式显示"""
+    return col_name in ('占比%', '累计占比%') or '占比' in col_name or '排名' in col_name
+
+
+def make_total_row(df: pd.DataFrame, agg_items: list = None) -> pd.Series:
+    """生成合计行：数值列求和，占比列特殊处理"""
+    # 找出无条件行数项的别名（如"回访总量"），作为占比分母
+    base_col = None
+    for item in agg_items or []:
+        if item.get('func') == '行数' and not item.get('condition') and not item.get('show_percent'):
+            base_col = item.get('alias')
+            break
+
+    # 构建占比列 -> (percent_mode, 对应数量列别名) 映射
+    percent_map: dict[str, tuple[str, str]] = {}
+    if agg_items:
+        for item in agg_items:
+            if item.get('show_percent'):
+                alias = item.get('alias', '')
+                if alias:
+                    mode = item.get('percent_mode', 'column')
+                    percent_map[f'{alias}占比'] = (mode, alias)
+
+    totals = []
+    for j, col in enumerate(df.columns):
+        if col in percent_map:
+            mode, qty_alias = percent_map[col]
+            if mode == 'group':
+                # 按组占比合计 = 该条件列合计 / 行数列合计 × 100
+                if base_col and base_col in df.columns:
+                    base_total = df[base_col].sum()
+                    if base_total != 0:
+                        totals.append((df[qty_alias].sum() / base_total * 100).round(2))
+                    else:
+                        totals.append('-')
+                else:
+                    totals.append('-')
+            else:
+                totals.append(df[col].sum())
+        elif is_percent_col(col):
+            totals.append(100.0 if col == '占比%' else '-')
+        elif np.issubdtype(df[col].dtype, np.number):
+            totals.append(df[col].sum())
+        elif j == 0:
+            totals.append('合计')
+        else:
+            totals.append('-')
+    return pd.Series(totals, index=df.columns)
 
 
 class DataAnalyzer:
@@ -195,10 +247,13 @@ class DataAnalyzer:
         # 分离常规聚合和特殊聚合（占比、累计占比等）
         regular_specs = []
         special_specs = []  # (spec, agg_func_name, base_alias)
+        size_specs = []  # 行数聚合，不依赖具体列
         for spec in agg_specs:
             func = spec.get('func')
             col = spec.get('col')
-            if func in ('占比', '累计占比', '排名', '百分位排名'):
+            if func == '行数':
+                size_specs.append(spec)
+            elif func in ('占比', '累计占比', '排名', '百分位排名'):
                 # 找到对应的聚合别名（对于同列的常规聚合）
                 base_alias = None
                 for rspec in agg_specs:
@@ -252,6 +307,15 @@ class DataAnalyzer:
                 results.append(row_result)
 
         result_df = pd.DataFrame(results) if results else pd.DataFrame()
+
+        # 处理行数聚合
+        for spec in size_specs:
+            alias = spec.get('alias', '行数')
+            size_result = df.groupby(valid_group_cols, dropna=False).size().reset_index(name=alias)
+            if result_df.empty:
+                result_df = size_result
+            else:
+                result_df = result_df.merge(size_result, on=valid_group_cols, how='outer')
 
         # 第二步：计算特殊聚合
         if special_specs and not result_df.empty:
@@ -410,22 +474,191 @@ class DataAnalyzer:
                 if col not in df.columns:
                     continue
 
+                # 尝试将 value 转换为列的实际类型
+                actual_value = value
+                if np.issubdtype(df[col].dtype, np.number) and isinstance(value, str):
+                    try:
+                        actual_value = float(value) if '.' in value else int(value)
+                    except ValueError:
+                        pass
+
                 if op == '>':
-                    filtered_df = filtered_df[filtered_df[col] > value]
+                    filtered_df = filtered_df[filtered_df[col] > actual_value]
                 elif op == '<':
-                    filtered_df = filtered_df[filtered_df[col] < value]
+                    filtered_df = filtered_df[filtered_df[col] < actual_value]
                 elif op == '==':
-                    filtered_df = filtered_df[filtered_df[col] == value]
+                    filtered_df = filtered_df[filtered_df[col] == actual_value]
                 elif op == '!=':
-                    filtered_df = filtered_df[filtered_df[col] != value]
+                    filtered_df = filtered_df[filtered_df[col] != actual_value]
                 elif op == '>=':
-                    filtered_df = filtered_df[filtered_df[col] >= value]
+                    filtered_df = filtered_df[filtered_df[col] >= actual_value]
                 elif op == '<=':
-                    filtered_df = filtered_df[filtered_df[col] <= value]
+                    filtered_df = filtered_df[filtered_df[col] <= actual_value]
                 elif op == 'contains':
                     filtered_df = filtered_df[filtered_df[col].astype(str).str.contains(str(value), na=False)]
 
         return self.aggregate_with_custom_funcs(filtered_df, group_cols, agg_specs)
+
+    def multi_conditional_aggregate(
+        self,
+        df: pd.DataFrame,
+        group_cols: List[str],
+        agg_items: List[Dict[str, Any]]
+    ) -> pd.DataFrame:
+        """
+        多条件列聚合：一个表中展示多个条件下的聚合值和占比
+
+        Args:
+            df: 数据框
+            group_cols: 分组列列表
+            agg_items: 聚合项列表，每项为 {
+                'col': str,          # 值列
+                'func': str,         # 聚合函数名（如'求和'、'计数'等）
+                'alias': str,        # 自定义列名
+                'condition': dict,   # 筛选条件 {col: (op, value)}，None表示无筛选
+                'show_percent': bool # 是否显示占比列
+            }
+
+        Returns:
+            多条件列聚合结果 DataFrame
+        """
+        if df is None or df.empty or not agg_items:
+            return pd.DataFrame()
+
+        valid_group_cols = [c for c in group_cols if c in df.columns]
+        if not valid_group_cols:
+            return pd.DataFrame()
+
+        result_dfs = []
+
+        # 预计算每组的行数，用于"按组总数"占比模式
+        group_sizes = df.groupby(valid_group_cols, dropna=False).size()
+
+        for item in agg_items:
+            col = item.get('col')
+            func_name = item.get('func')
+            alias = item.get('alias', f'{col}-{func_name}')
+            conditions = item.get('condition') or {}
+            show_percent = item.get('show_percent', False)
+
+            if col not in df.columns:
+                continue
+
+            # 获取聚合函数
+            func_info = AGG_FUNCTIONS.get(func_name)
+            if func_info is None:
+                continue
+
+            func_type, _ = func_info
+
+            # 筛选数据
+            filtered_df = df
+            for cond_col, (op, value) in conditions.items():
+                if cond_col not in df.columns:
+                    continue
+
+                # 尝试将 value 转换为列的实际类型
+                actual_value = value
+                if np.issubdtype(df[cond_col].dtype, np.number) and isinstance(value, str):
+                    try:
+                        actual_value = float(value) if '.' in value else int(value)
+                    except ValueError:
+                        pass
+
+                if op == '>':
+                    filtered_df = filtered_df[filtered_df[cond_col] > actual_value]
+                elif op == '<':
+                    filtered_df = filtered_df[filtered_df[cond_col] < actual_value]
+                elif op == '==':
+                    filtered_df = filtered_df[filtered_df[cond_col] == actual_value]
+                elif op == '!=':
+                    filtered_df = filtered_df[filtered_df[cond_col] != actual_value]
+                elif op == '>=':
+                    filtered_df = filtered_df[filtered_df[cond_col] >= actual_value]
+                elif op == '<=':
+                    filtered_df = filtered_df[filtered_df[cond_col] <= actual_value]
+                elif op == 'contains':
+                    filtered_df = filtered_df[filtered_df[cond_col].astype(str).str.contains(str(value), na=False)]
+
+            # 执行聚合
+            if func_type == 'count':
+                agg_result = filtered_df.groupby(valid_group_cols, dropna=False)[col].count().rename(alias).reset_index()
+            elif func_type == 'nunique':
+                agg_result = filtered_df.groupby(valid_group_cols, dropna=False)[col].nunique().rename(alias).reset_index()
+            elif func_type == 'sum':
+                agg_result = filtered_df.groupby(valid_group_cols, dropna=False)[col].sum().rename(alias).reset_index()
+            elif func_type == 'mean':
+                agg_result = filtered_df.groupby(valid_group_cols, dropna=False)[col].mean().rename(alias).reset_index()
+            elif func_type == 'median':
+                agg_result = filtered_df.groupby(valid_group_cols, dropna=False)[col].median().rename(alias).reset_index()
+            elif func_type == 'max':
+                agg_result = filtered_df.groupby(valid_group_cols, dropna=False)[col].max().rename(alias).reset_index()
+            elif func_type == 'min':
+                agg_result = filtered_df.groupby(valid_group_cols, dropna=False)[col].min().rename(alias).reset_index()
+            elif func_type == 'std':
+                agg_result = filtered_df.groupby(valid_group_cols, dropna=False)[col].std().rename(alias).reset_index()
+            elif func_type == 'first':
+                agg_result = filtered_df.groupby(valid_group_cols, dropna=False)[col].first().rename(alias).reset_index()
+            elif func_type == 'last':
+                agg_result = filtered_df.groupby(valid_group_cols, dropna=False)[col].last().rename(alias).reset_index()
+            elif func_type == 'size':
+                agg_result = filtered_df.groupby(valid_group_cols, dropna=False).size().reset_index(name=alias)
+                # 无条件的行数不参与占比（组内行数/组内行数=100%，无意义）
+                # 有条件过滤的行数可按组总数计算占比（条件行数/组内行数）
+                if show_percent and not conditions:
+                    show_percent = False
+            else:
+                continue
+
+            # 计算占比（行数按组总数时不需要数值列，其他模式需要数值列做求和）
+            is_size_percent = func_type == 'size' and show_percent
+            if show_percent and (is_size_percent or np.issubdtype(df[col].dtype, np.number)):
+                percent_mode = item.get('percent_mode', 'column')
+                percent_alias = f'{alias}占比'
+                if percent_mode == 'group':
+                    # 按组内行数计算占比（分母是组内总行数）
+                    if len(valid_group_cols) == 1:
+                        sizes_aligned = group_sizes.reset_index()
+                        sizes_aligned.columns = [valid_group_cols[0], '_group_size']
+                    else:
+                        sizes_aligned = group_sizes.reset_index()
+                        sizes_aligned.columns = valid_group_cols + ['_group_size']
+                    merged_sizes = agg_result[valid_group_cols].merge(sizes_aligned, on=valid_group_cols, how='left')
+                    group_size_values = merged_sizes['_group_size'].values
+                    nonzero = group_size_values != 0
+                    agg_result[percent_alias] = np.where(
+                        nonzero,
+                        (agg_result[alias].values / group_size_values * 100).round(2),
+                        np.nan
+                    )
+                else:
+                    # 按列总和计算占比（现有行为）
+                    if func_type == 'size':
+                        grand_total = agg_result[alias].sum()
+                    else:
+                        grand_total = filtered_df[col].sum()
+                    if grand_total != 0:
+                        agg_result[percent_alias] = (agg_result[alias] / grand_total * 100).round(2)
+                    else:
+                        agg_result[percent_alias] = np.nan
+
+            result_dfs.append(agg_result)
+
+        if not result_dfs:
+            return pd.DataFrame()
+
+        # 合并所有结果
+        result = result_dfs[0]
+        for rdf in result_dfs[1:]:
+            result = result.merge(rdf, on=valid_group_cols, how='outer')
+
+        # 排序：按第一个数值列降序
+        numeric_cols = result.select_dtypes(include=[np.number]).columns
+        if len(numeric_cols) > 0:
+            result = result.sort_values(numeric_cols[0], ascending=False, na_position='last')
+
+        result = result.reset_index(drop=True)
+        return result
 
     def detect_missing(self, df: pd.DataFrame) -> Dict[str, Any]:
         """检测缺失值（全部列）"""

@@ -1,9 +1,10 @@
 """Excel 导出模块"""
 import pandas as pd
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
+from core.analyzer import make_total_row, is_percent_col
 
 
 class ExcelExporter:
@@ -13,6 +14,8 @@ class ExcelExporter:
         self.header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
         self.header_font = Font(color="FFFFFF", bold=True)
         self.center_align = Alignment(horizontal="center", vertical="center")
+        self.total_fill = PatternFill(start_color="E8E8E8", end_color="E8E8E8", fill_type="solid")
+        self.total_font = Font(bold=True)
 
     def export_dataframe(self, df: pd.DataFrame, file_path: str, sheet_name: str = 'Sheet1') -> None:
         """导出 DataFrame 到 Excel"""
@@ -21,13 +24,17 @@ class ExcelExporter:
 
         df.to_excel(file_path, sheet_name=sheet_name, index=False, engine='openpyxl')
 
-    def export_with_format(self, df: pd.DataFrame, file_path: str, sheet_name: str = 'Sheet1') -> None:
-        """带格式导出 DataFrame 到 Excel"""
+    def export_with_format(self, df: pd.DataFrame, file_path: str, sheet_name: str = 'Sheet1',
+                           agg_items: Optional[List[Dict]] = None) -> None:
+        """带格式导出 DataFrame 到 Excel（含合计行）"""
         path = Path(file_path)
         path.parent.mkdir(parents=True, exist_ok=True)
 
+        # 追加合计行
+        export_df = self._add_total_row(df, agg_items)
+
         with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
-            df.to_excel(writer, sheet_name=sheet_name, index=False)
+            export_df.to_excel(writer, sheet_name=sheet_name, index=False)
 
         # 应用格式
         from openpyxl import load_workbook
@@ -40,16 +47,47 @@ class ExcelExporter:
             cell.font = self.header_font
             cell.alignment = self.center_align
 
+        # 合计行格式（最后一行）
+        last_row = len(export_df) + 1  # +1 because Excel row 1 is header
+        for cell in ws[last_row]:
+            cell.fill = self.total_fill
+            cell.font = self.total_font
+
         # 列宽自适应
-        for col_idx, column in enumerate(df.columns, 1):
-            col_data = df[column].astype(str)
+        for col_idx, column in enumerate(export_df.columns, 1):
+            col_data = export_df[column].astype(str)
             max_len = max(
                 len(str(column)),
-                col_data.str.len().max() if len(df) > 0 else 0
+                col_data.str.len().max() if len(export_df) > 0 else 0
             )
             ws.column_dimensions[get_column_letter(col_idx)].width = min(max_len + 2, 50)
 
         wb.save(file_path)
+
+    def _add_total_row(self, df: pd.DataFrame, agg_items: Optional[List[Dict]] = None) -> pd.DataFrame:
+        """给 DataFrame 追加合计行，占比列格式化为百分字符串"""
+        if df is None or df.empty:
+            return df
+        export_df = df.copy()
+
+        # 用共享逻辑计算合计行（含占比列的正确合计值）
+        total_row = make_total_row(export_df, agg_items)
+
+        # 占比列格式化为百分字符串（数据行 + 合计行）
+        for col in export_df.columns:
+            if is_percent_col(col) and pd.api.types.is_numeric_dtype(export_df[col]):
+                export_df[col] = export_df[col].apply(
+                    lambda x: f'{x:.2f}%' if pd.notna(x) else ''
+                )
+            # 合计行中的占比列也格式化
+            if is_percent_col(col):
+                val = total_row[col]
+                if isinstance(val, (int, float)) and pd.notna(val):
+                    total_row[col] = f'{val:.2f}%'
+                elif val == '-':
+                    total_row[col] = '-'
+
+        return pd.concat([export_df.reset_index(drop=True), total_row.to_frame().T], ignore_index=True)
 
     def export_stats_report(self, stats: pd.DataFrame, file_path: str, title: str = '描述性统计报告') -> None:
         """导出统计报告"""
