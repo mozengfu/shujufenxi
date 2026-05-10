@@ -1,7 +1,25 @@
 """表格导入模块，支持 Excel 和 CSV 文件"""
 import pandas as pd
+import numpy as np
 from pathlib import Path
 from typing import Optional
+
+
+def _normalize_dtypes(df: pd.DataFrame) -> pd.DataFrame:
+    """将 pandas 的 nullable dtype（StringDtype, Int64Dtype 等）转换为标准 numpy 类型，
+    避免与 numpy 类型检查（np.issubdtype）不兼容。"""
+    dtype_map = {}
+    for col in df.columns:
+        dtype = df[col].dtype
+        # StringDtype -> object
+        if isinstance(dtype, pd.StringDtype):
+            dtype_map[col] = 'object'
+        # 其他 ExtensionDtype（Int64, Float64 等 nullable 整数/浮点类型）-> 标准 numpy
+        elif hasattr(pd.api, 'types') and isinstance(dtype, pd.api.types.CategoricalDtype):
+            dtype_map[col] = 'object'
+    if dtype_map:
+        df = df.astype(dtype_map)
+    return df
 
 
 class TableImporter:
@@ -35,6 +53,9 @@ class TableImporter:
                 self.df = pd.read_csv(file_path, encoding='gbk')
         else:
             self.df = pd.read_excel(file_path)
+
+        # 统一转换为标准 numpy dtype，避免 pandas nullable dtype 与 numpy 不兼容
+        self.df = _normalize_dtypes(self.df)
 
         return self.df
 
