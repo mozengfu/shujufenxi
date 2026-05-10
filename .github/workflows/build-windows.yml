@@ -23,6 +23,18 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller pillow
 
+      - name: Bundle VC++ runtime DLLs
+        run: |
+          $pyRoot = $env:pythonLocation
+          $dlls = @('vcruntime140.dll', 'vcruntime140_1.dll', 'msvcp140.dll')
+          mkdir vc_dlls -Force
+          foreach ($dll in $dlls) {
+            $p = "$pyRoot\$dll"
+            if (Test-Path $p) { Copy-Item $p vc_dlls\ }
+          }
+          dir vc_dlls
+        shell: powershell
+
       - name: Generate .ico icon
         run: |
           python -c "
@@ -89,6 +101,7 @@ jobs:
             --name 数据分析系统 `
             --icon=icon.ico `
             --add-data "icon.ico;." `
+            --add-binary "vc_dlls;." `
             --collect-all PyQt6 `
             --collect-all matplotlib `
             --hidden-import matplotlib.backends.backend_qtagg `
