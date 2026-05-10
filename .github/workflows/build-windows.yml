@@ -21,11 +21,10 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          pip install pyinstaller
+          pip install pyinstaller pillow
 
       - name: Bundle VC++ runtime DLLs
         run: |
-          # Qt6 DLLs 依赖 VC++ 运行时，打包进去避免目标机器缺少
           $dlls = @('vcruntime140.dll', 'vcruntime140_1.dll', 'msvcp140.dll', 'msvcp140_1.dll', 'msvcp140_2.dll', 'concrt140.dll')
           mkdir vc_dlls -Force
           foreach ($dll in $dlls) {
@@ -46,7 +45,6 @@ jobs:
           img = Image.new('RGB', (S, S), (44, 62, 80))
           draw = ImageDraw.Draw(img)
 
-          # 渐变
           for y in range(S):
               t = y / S
               r = int(44 + (41 - 44) * t)
@@ -54,7 +52,6 @@ jobs:
               b = int(80 + (185 - 80) * t)
               draw.line([(0, y), (S, y)], fill=(r, g, b))
 
-          # 柱状图
           cx, cy = S // 2, S // 2
           bw, gap = 20, 18
           base_y = 200
@@ -65,7 +62,6 @@ jobs:
               color = (39, 174, 96) if i == 1 else (255, 255, 255)
               draw.rounded_rectangle((x1, y1, x2, y2), radius=5, fill=color)
 
-          # 折线
           pts = [(cx - gap - bw // 2, base_y - 56),
                  (cx, base_y - 122),
                  (cx + gap + bw // 2, base_y - 97)]
@@ -73,7 +69,6 @@ jobs:
           for px, py in pts:
               draw.ellipse((px-4, py-4, px+4, py+4), fill=(142, 68, 173))
 
-          # 表格
           tl, tr, tt, tb = 148, 235, 123, 200
           th = tb - tt
           draw.rectangle((tl, tt, tr, tt + th // 4), fill=(255,255,255,30))
@@ -84,7 +79,6 @@ jobs:
               y = tt + th * r // 4
               draw.line([(tl, y), (tr, y)], fill=(200,200,200))
 
-          # 圆角蒙版 + 阴影
           shadow = Image.new('RGBA', (S, S), (0,0,0,0))
           sd = ImageDraw.Draw(shadow)
           sd.rounded_rectangle((5, 5, S, S), radius=40, fill=(0,0,0,100))
@@ -104,10 +98,21 @@ jobs:
       - name: Build with PyInstaller
         run: |
           pyinstaller --windowed --name 数据分析系统 --icon=icon.ico --add-data "icon.ico;." --add-binary "vc_dlls;." --collect-all PyQt6 --collect-all matplotlib --hidden-import matplotlib.backends.backend_qtagg --hidden-import matplotlib.backends.backend_agg --exclude-module PyQt5 --exclude-module PySide6 --exclude-module IPython --exclude-module jupyter main.py
-          Compress-Archive -Path dist\数据分析系统\* -DestinationPath 数据分析系统.zip
 
-      - name: Upload zip
+      - name: Create installer with Inno Setup
+        uses: Minionguyjpro/Inno-Setup-Action@v1.2.5
+        with:
+          path: setup.iss
+          options: /O+ /F"数据分析系统-安装包"
+
+      - name: Upload setup.exe
         uses: actions/upload-artifact@v4
         with:
-          name: 数据分析系统-Windows
-          path: 数据分析系统.zip
+          name: 数据分析系统-安装包
+          path: Output/数据分析系统-安装包.exe
+
+      - name: Upload to Release (if tag)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Output/数据分析系统-安装包.exe
