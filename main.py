@@ -48,8 +48,8 @@ except Exception:
     _log_crash(sys.exc_info())
     raise
 
-from PyQt5.QtWidgets import QApplication, QMessageBox, QPalette
-from PyQt5.QtGui import QFont, QColor
+from PyQt5.QtWidgets import QApplication, QMessageBox
+from PyQt5.QtGui import QFont, QColor, QPalette
 from PyQt5.QtCore import QTranslator, QLibraryInfo, QLocale
 from ui import MainWindow
 
