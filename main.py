@@ -48,52 +48,60 @@ except Exception:
     _log_crash(sys.exc_info())
     raise
 
-# ── Windows 下确保 Qt DLL 在搜索路径中 ──
-if sys.platform == 'win32' and getattr(sys, 'frozen', False):
-    try:
-        _meipass = Path(sys._MEIPASS)
-        # PyInstaller 收集 PyQt6 的多种可能路径
-        _dll_dirs = [
-            _meipass / 'PyQt6' / 'Qt6' / 'bin',
-            _meipass / 'Qt6' / 'bin',
-            _meipass / 'PyQt6',
-            _meipass,
-        ]
-        # 同时用 os.add_dll_directory + PATH，双管齐下
-        _paths_to_add = []
-        for _qp in _dll_dirs:
-            if _qp.exists():
-                os.add_dll_directory(str(_qp))
-                _paths_to_add.append(str(_qp))
-        if _paths_to_add:
-            os.environ['PATH'] = ';'.join(_paths_to_add) + ';' + os.environ.get('PATH', '')
+# ── Windows 下 DLL 加载（必须在 import PyQt6 之前执行） ──
+# Windows Server 2016 等系统缺 MSVC 运行库，Qt6 DLL 会因依赖缺失而加载失败。
+# 在操作系统级别确保 DLL 能被找到，是最可靠的方案。
+if sys.platform == 'win32':
+    import ctypes
 
-        # 最直接的方式：在 import PyQt6 前，用 ctypes 手动加载 Qt DLL
-        # 一旦 DLL 加载进内存，后续 .pyd 依赖加载时就能找到
-        import ctypes
-        # 先预加载 MSVC 运行库（Qt6 DLL 的依赖，Windows Server 2016 缺这个）
-        _msvc_dlls = ['vcruntime140.dll', 'vcruntime140_1.dll', 'msvcp140.dll',
-                      'msvcp140_1.dll', 'msvcp140_2.dll']
-        for _msvc in _msvc_dlls:
-            _p = _meipass / _msvc
+    if getattr(sys, 'frozen', False):
+        _base = Path(sys._MEIPASS)
+        _dirs = [
+            _base / 'PyQt6' / 'Qt6' / 'bin',
+            _base,
+            Path(sys.executable).parent,
+        ]
+    else:
+        try:
+            import PyQt6
+            _dirs = [Path(PyQt6.__file__).parent / 'Qt6' / 'bin']
+        except ImportError:
+            _dirs = []
+
+    # 1. 注册 DLL 目录
+    for _d in _dirs:
+        if _d.exists():
+            try:
+                os.add_dll_directory(str(_d))
+            except (OSError, ValueError):
+                pass
+
+    # 2. 添加 PATH（Qt6 DLL 需要在这个路径中找 MSVC 依赖）
+    _path_entries = []
+    for _d in _dirs:
+        if _d.exists():
+            _path_entries.append(str(_d))
+    if _path_entries:
+        _old_path = os.environ.get('PATH', '')
+        os.environ['PATH'] = ';'.join(_path_entries) + ';' + _old_path
+
+    # 3. 用 ctypes.WinDLL 预加载关键 DLL
+    # 必须用 WinDLL（stdcall），因为 MSVC 和 Qt6 DLL 都用此调用约定
+    for _dll_name in [
+        'vcruntime140.dll',
+        'vcruntime140_1.dll',
+        'msvcp140.dll',
+        'Qt6Core.dll',
+        'Qt6Gui.dll',
+    ]:
+        for _d in _dirs:
+            _p = _d / _dll_name
             if _p.exists():
                 try:
-                    ctypes.CDLL(str(_p))
+                    ctypes.WinDLL(str(_p))
+                    break
                 except Exception:
                     pass
-
-        # 用 ctypes 手动加载 Qt DLL，加载进内存后 .pyd 就能找到
-        _qt_bin = _meipass / 'PyQt6' / 'Qt6' / 'bin'
-        if _qt_bin.exists():
-            for _dll_name in ['Qt6Core.dll', 'Qt6Gui.dll', 'Qt6Widgets.dll']:
-                _dll_path = _qt_bin / _dll_name
-                if _dll_path.exists():
-                    try:
-                        ctypes.CDLL(str(_dll_path))
-                    except Exception:
-                        pass
-    except Exception:
-        pass
 
 # ── 诊断：写入环境信息（帮助排查 QtWidgets 加载失败） ──
 if getattr(sys, 'frozen', False) and sys.platform == 'win32':

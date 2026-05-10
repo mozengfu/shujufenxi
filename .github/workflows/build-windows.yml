@@ -101,7 +101,6 @@ jobs:
             --icon=icon.ico `
             --add-data "icon.ico;." `
             --add-binary "vc_dlls;." `
-            --runtime-hook=hook-msvc-runtime.py `
             --collect-all PyQt6 `
             --collect-all matplotlib `
             --hidden-import matplotlib.backends.backend_qtagg `
