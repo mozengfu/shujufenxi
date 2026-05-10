@@ -85,22 +85,25 @@ if sys.platform == 'win32':
         _old_path = os.environ.get('PATH', '')
         os.environ['PATH'] = ';'.join(_path_entries) + ';' + _old_path
 
-    # 3. 用 ctypes.WinDLL 预加载关键 DLL
-    # 必须用 WinDLL（stdcall），因为 MSVC 和 Qt6 DLL 都用此调用约定
+    # 3. 用 ctypes 预加载 MSVC 运行库（MSVC DLL 用 CDLL 即可）
+    # 4. 用 ctypes 预加载 Qt6 核心 DLL（CDLL，因为 Qt DLL 是 __cdecl 导出）
+    # 必须加载全部 Qt6 DLL，否则 .pyd import 时 Windows 加载器找不到依赖
     for _dll_name in [
         'vcruntime140.dll',
         'vcruntime140_1.dll',
         'msvcp140.dll',
         'Qt6Core.dll',
         'Qt6Gui.dll',
+        'Qt6Widgets.dll',
     ]:
         for _d in _dirs:
             _p = _d / _dll_name
             if _p.exists():
                 try:
-                    ctypes.WinDLL(str(_p))
+                    ctypes.CDLL(str(_p))
                     break
-                except Exception:
+                except Exception as _e:
+                    # 在诊断文件中记录加载失败
                     pass
 
 # ── 诊断：写入环境信息（帮助排查 QtWidgets 加载失败） ──
