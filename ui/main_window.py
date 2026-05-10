@@ -1,8 +1,8 @@
 """主窗口模块"""
-from PyQt5.QtWidgets import (QMainWindow, QToolBar,
+from PyQt5.QtWidgets import (QMainWindow, QToolBar, QAction,
                               QFileDialog, QMessageBox, QTabWidget,
                               QLineEdit, QTextEdit, QApplication)
-from PyQt5.QtGui import QAction, QKeySequence, QDragEnterEvent, QDropEvent
+from PyQt5.QtGui import QKeySequence, QDragEnterEvent, QDropEvent
 from PyQt5.QtCore import Qt, QSettings
 import pandas as pd
 

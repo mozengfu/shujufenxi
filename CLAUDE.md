@@ -3,9 +3,9 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## 项目概述
-桌面应用，用于导入 Excel/CSV 表格，进行描述性统计、数据质量检测、对比分析、多表合并、数据清洗，输出 Excel 报表和 Word 报告。
+桌面应用，用于导入 Excel/CSV 表格，进行描述性统计、数据质量检测、对比分析、多表合并、数据清洗、列计算，输出 Excel 报表和 Word 报告。
 
-技术栈：PyQt5 + pandas + openpyxl + python-docx
+技术栈：PyQt5 + pandas + openpyxl + python-docx + matplotlib
 
 ## 常用命令
 ```bash
@@ -18,22 +18,37 @@ python main.py
 # 语法检查
 ruff check .
 
-# PyInstaller 打包
+# PyInstaller 打包 (macOS)
 pyinstaller 数据分析系统.spec
+
+# PyInstaller 打包 (Windows)
+pyinstaller 数据分析系统-win.spec
+
+# GitHub Actions 触发方式
+# - 手动 dispatch
+# - 推送 v* 标签（自动构建 Windows 安装包并创建 Release）
 ```
 
 ## 目录结构
 ```
 shujufenxi/
-├── main.py                   # 入口，初始化 QApplication + MainWindow
-├── 数据分析系统.spec          # PyInstaller 打包配置
+├── main.py                   # 入口，QApplication + MainWindow + 全局样式
+├── requirements.txt          # Python 依赖
+├── 数据分析系统.spec          # PyInstaller 打包配置 (macOS)
+├── 数据分析系统-win.spec     # PyInstaller 打包配置 (Windows ONEDIR)
+├── build_windows.spec        # PyInstaller 打包配置 (Windows EXE, 旧版)
+├── build_windows.py          # Windows PyInstaller 构建脚本
+├── build.bat                 # Windows 批处理构建脚本
+├── setup.iss                 # Inno Setup 安装包脚本
+├── icon.icns                 # macOS 应用图标
 ├── core/                     # 纯逻辑层，无 GUI 依赖
 │   ├── analyzer.py           # DataAnalyzer - 统计/质量检测/分组聚合/对比
 │   ├── cleaner.py            # DataCleaner - 类型转换/列拆分/字符操作/去重/填充
 │   ├── exporter.py           # ExcelExporter - 带格式导出/统计/质量/对比报告
 │   ├── importer.py           # TableImporter - xlsx/xls/csv 导入，自动编码
 │   ├── merger.py             # TableMerger - 关键列合并/行追加合并
-│   └── reporter.py           # WordReporter - docx 报告生成
+│   ├── reporter.py           # WordReporter - docx 报告生成
+│   └── report_builder.py     # ReportConfig/ReportSection 数据模型 + ReportGenerator 引擎
 └── ui/                       # PyQt5 界面层
     ├── main_window.py        # MainWindow - 主窗口，协调所有模块
     ├── analysis_panel.py     # AnalysisPanel - 核心分析面板，聚合配置/结果展示
@@ -42,6 +57,9 @@ shujufenxi/
     ├── clean_dialog.py       # CleanDialog - 数据清洗对话框，QStackedWidget 多页面
     ├── merge_dialog.py       # MergeDialog - 多表合并对话框
     ├── report_dialog.py      # ReportDialog - Word 导出选项对话框
+    ├── report_designer.py    # ReportDesigner - 自定义报表设计器（支持标题/统计/质量/文本/表格/图表区块）
+    ├── column_calc_dialog.py # ColumnCalcDialog - 表达式列计算（Python eval in DataFrame scope）
+    ├── chart_widget.py       # ChartWidget - matplotlib 嵌入 PyQt（直方图/箱线图/柱状图/分组图）
     └── help_dialog.py        # HelpDialog - 使用指南
 ```
 
@@ -64,13 +82,27 @@ shujufenxi/
 
 ### 聚合系统
 `AGG_FUNCTIONS` 字典定义支持的聚合函数（计数、去重计数、求和、平均值、中位数、最大值、最小值、标准差、第一值、最后值、占比、累计占比、排名、百分位排名）。
-其中占比/累计占比/排名/百分位排名作为"特殊聚合"在 aggregate_with_custom_funcs 中第二步计算，依赖第一步的常规聚合结果。
-NUMERIC_AGGS 列出仅适用于数值列的聚合。
+其中占比/累计占比/排名/百分位排名作为"特殊聚合"在 `aggregate_with_custom_funcs` 中第二步计算，依赖第一步的常规聚合结果。
+`NUMERIC_AGGS` 列出仅适用于数值列的聚合。
+
+### 报表系统
+`core/report_builder.py` 提供 JSON 可序列化的 ReportConfig/ReportSection 数据模型和 ReportGenerator 引擎，协调 WordReporter + ExcelExporter + DataAnalyzer 完成报表生成。
+`ui/report_designer.py` 提供可视化报表设计器，支持标题、统计、质量、文本、数据表、图表六种区块，模板通过 QSettings 持久化。
+
+### 图表系统
+`ui/chart_widget.py` 使用 matplotlib QtAgg 后端嵌入 PyQt，支持直方图、箱线图、柱状图、分组图。自动检测系统中文字体。
+
+### 列计算
+`ui/column_calc_dialog.py` 提供表达式列计算功能，使用 Python eval 在 DataFrame 作用域内计算，语法为 `{column_name}` 引用已有列。
 
 ### 拖放支持
 MainWindow、AnalysisPanel、FieldSelector 均实现 dragEnterEvent/dropEvent 支持文件拖放导入。
 
 ### 打包
-- 使用 PyInstaller spec 打包为 .app
+- macOS: `pyinstaller 数据分析系统.spec` → 生成 `.app`
+- Windows: `pyinstaller 数据分析系统-win.spec` → 生成 ONEDIR 目录
+- CI/CD: `.github/workflows/build-windows.yml` 推送 `v*` 标签自动构建 Windows 安装包
 - 关键配置：排除 PyQt6/PySide6，禁用 console，打包 Qt plugins 目录
-- 打包命令：`pyinstaller 数据分析系统.spec`
+
+### 测试
+**项目无自动化测试。** 所有 core/ 模块理论上可独立测试（无 Qt 依赖），但目前没有 test 目录或测试配置。验证主要依靠 `ruff check .` 和手动运行应用。
