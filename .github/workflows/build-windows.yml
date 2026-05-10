@@ -28,10 +28,8 @@ jobs:
           $dlls = @('vcruntime140.dll', 'vcruntime140_1.dll', 'msvcp140.dll', 'msvcp140_1.dll', 'msvcp140_2.dll', 'concrt140.dll')
           mkdir vc_dlls -Force
           foreach ($dll in $dlls) {
-            $paths = @("C:\Windows\System32\$dll")
-            foreach ($p in $paths) {
-              if (Test-Path $p) { Copy-Item $p vc_dlls\; break }
-            }
+            $p = "C:\Windows\System32\$dll"
+            if (Test-Path $p) { Copy-Item $p vc_dlls\ }
           }
           dir vc_dlls
         shell: powershell
@@ -97,22 +95,59 @@ jobs:
 
       - name: Build with PyInstaller
         run: |
-          pyinstaller --windowed --name 数据分析系统 --icon=icon.ico --add-data "icon.ico;." --add-binary "vc_dlls;." --collect-all PyQt6 --collect-all matplotlib --hidden-import matplotlib.backends.backend_qtagg --hidden-import matplotlib.backends.backend_agg --exclude-module PyQt5 --exclude-module PySide6 --exclude-module IPython --exclude-module jupyter main.py
+          pyinstaller `
+            --windowed `
+            --name 数据分析系统 `
+            --icon=icon.ico `
+            --add-data "icon.ico;." `
+            --add-binary "vc_dlls;." `
+            --runtime-hook=hook-msvc-runtime.py `
+            --collect-all PyQt6 `
+            --collect-all matplotlib `
+            --hidden-import matplotlib.backends.backend_qtagg `
+            --hidden-import matplotlib.backends.backend_agg `
+            --exclude-module PyQt5 `
+            --exclude-module PySide6 `
+            --exclude-module IPython `
+            --exclude-module jupyter `
+            main.py
+
+      - name: List build output
+        run: |
+          Write-Output "=== Root of build output ==="
+          Get-ChildItem dist\数据分析系统 -Name | Select-Object -First 30
+          Write-Output "=== vc_dlls in build ==="
+          Get-ChildItem dist\数据分析系统\vcruntime*.dll, dist\数据分析系统\msvcp140*.dll, dist\数据分析系统\concrt140.dll -Name -ErrorAction SilentlyContinue
+          Write-Output "=== hook in build ==="
+          Get-ChildItem dist\数据分析系统\hook*.py* -Name -ErrorAction SilentlyContinue
+        shell: powershell
 
       - name: Create installer with Inno Setup
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.5
         with:
           path: setup.iss
-          options: /O+ /F"数据分析系统-安装包"
+          options: /O+ /F"shujufenxi-setup"
 
       - name: Upload setup.exe
         uses: actions/upload-artifact@v4
         with:
-          name: 数据分析系统-安装包
-          path: Output/数据分析系统-安装包.exe
+          name: 数据分析系统-setup
+          path: Output/shujufenxi-setup.exe
+
+      - name: Upload zip fallback
+        run: Compress-Archive -Path dist\数据分析系统\* -DestinationPath 数据分析系统.zip
+        shell: powershell
+
+      - name: Upload zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: 数据分析系统-zip
+          path: 数据分析系统.zip
 
       - name: Upload to Release (if tag)
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: Output/数据分析系统-安装包.exe
+          files: |
+            Output/shujufenxi-setup.exe
+            数据分析系统.zip

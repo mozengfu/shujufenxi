@@ -71,6 +71,18 @@ if sys.platform == 'win32' and getattr(sys, 'frozen', False):
         # 最直接的方式：在 import PyQt6 前，用 ctypes 手动加载 Qt DLL
         # 一旦 DLL 加载进内存，后续 .pyd 依赖加载时就能找到
         import ctypes
+        # 先预加载 MSVC 运行库（Qt6 DLL 的依赖，Windows Server 2016 缺这个）
+        _msvc_dlls = ['vcruntime140.dll', 'vcruntime140_1.dll', 'msvcp140.dll',
+                      'msvcp140_1.dll', 'msvcp140_2.dll']
+        for _msvc in _msvc_dlls:
+            _p = _meipass / _msvc
+            if _p.exists():
+                try:
+                    ctypes.CDLL(str(_p))
+                except Exception:
+                    pass
+
+        # 用 ctypes 手动加载 Qt DLL，加载进内存后 .pyd 就能找到
         _qt_bin = _meipass / 'PyQt6' / 'Qt6' / 'bin'
         if _qt_bin.exists():
             for _dll_name in ['Qt6Core.dll', 'Qt6Gui.dll', 'Qt6Widgets.dll']:
@@ -79,7 +91,7 @@ if sys.platform == 'win32' and getattr(sys, 'frozen', False):
                     try:
                         ctypes.CDLL(str(_dll_path))
                     except Exception:
-                        pass  # 单个 DLL 加载失败不终止
+                        pass
     except Exception:
         pass
 
