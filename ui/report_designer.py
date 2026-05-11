@@ -17,6 +17,7 @@ AVAILABLE_SECTIONS = [
     ('text', '文本块'),
     ('data_table', '数据明细表'),
     ('chart', '分析图表'),
+    ('analysis_result', '分析结果'),
 ]
 
 
@@ -32,10 +33,12 @@ class ReportDesigner(QDialog):
         if parent and hasattr(parent, 'analyzer'):
             self.analyzer = parent.analyzer
         self.chart_figures = {}
+        self.analysis_result = None
         if parent and hasattr(parent, 'analysis_panel'):
             fig = parent.analysis_panel.chart_figure
             if fig is not None:
                 self.chart_figures['current'] = fig
+            self.analysis_result = parent.analysis_panel.last_result_df
         self.settings = QSettings('shujufenxi', 'report_templates')
         self.init_ui()
 
@@ -209,7 +212,7 @@ class ReportDesigner(QDialog):
         try:
             from core.reporter import WordReporter
             reporter = WordReporter()
-            generator = ReportGenerator(self.df, self.analyzer)
+            generator = ReportGenerator(self.df, self.analyzer, self.analysis_result)
             generator.generate_word(self.config, reporter, self.chart_figures)
             reporter.save(file_path)
             QMessageBox.information(self, '成功', f'已导出到 {file_path}')
@@ -237,7 +240,7 @@ class ReportDesigner(QDialog):
         try:
             from core.exporter import ExcelExporter
             exporter = ExcelExporter()
-            generator = ReportGenerator(self.df, self.analyzer)
+            generator = ReportGenerator(self.df, self.analyzer, self.analysis_result)
             generator.generate_excel(self.config, exporter, file_path)
             QMessageBox.information(self, '成功', f'已导出到 {file_path}')
         except Exception as e:

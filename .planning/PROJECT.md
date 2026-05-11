@@ -4,7 +4,7 @@
 桌面应用，用于导入 Excel/CSV 表格，进行描述性统计、数据质量检测、对比分析、多表合并、数据清洗，输出 Excel 报表和 Word 报告。
 
 ## 技术栈
-PyQt6 + pandas + openpyxl + python-docx + matplotlib
+PyQt5 + pandas + openpyxl + python-docx + matplotlib
 
 ## 当前状态
 - 核心分析功能完整：导入/清洗/统计/质量检测/合并/导出

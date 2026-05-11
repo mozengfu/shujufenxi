@@ -21,13 +21,21 @@ ruff check .
 # PyInstaller 打包 (macOS)
 pyinstaller 数据分析系统.spec
 
-# PyInstaller 打包 (Windows)
+# PyInstaller 打包 (Windows ONEDIR)
 pyinstaller 数据分析系统-win.spec
+
+# 本地 Windows 打包（自动安装依赖）
+python build_windows.py
 
 # GitHub Actions 触发方式
 # - 手动 dispatch
 # - 推送 v* 标签（自动构建 Windows 安装包并创建 Release）
+# CI 产物：Inno Setup 安装包 (shujufenxi-setup.exe) + ZIP 备份
 ```
+
+## 调试
+- **崩溃日志**：打包后双击无响应时，查看桌面 `数据分析系统_crash.log`（main.py 自动写入 Python traceback + 环境信息）
+- **Qt 插件路径**：`QT_QPA_PLATFORM_PLUGIN_PATH` 环境变量在 main.py 中自动探测，无需手动设置
 
 ## 目录结构
 ```
@@ -79,6 +87,9 @@ shujufenxi/
                                                   ↓
                                 ExcelExporter / WordReporter 导出
 ```
+
+### 时间序列分析
+`core/analyzer.py` 中的 `yoy_analysis`（同比）和 `mom_analysis`（环比）方法支持按月/季度聚合后与上期对比，返回增减额和增幅百分比。
 
 ### 聚合系统
 `AGG_FUNCTIONS` 字典定义支持的聚合函数（计数、去重计数、求和、平均值、中位数、最大值、最小值、标准差、第一值、最后值、占比、累计占比、排名、百分位排名）。

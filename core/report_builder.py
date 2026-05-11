@@ -49,9 +49,11 @@ class ReportConfig:
 class ReportGenerator:
     """报表生成引擎，根据 ReportConfig 生成 Word/Excel 报告"""
 
-    def __init__(self, df: pd.DataFrame, analyzer: DataAnalyzer):
+    def __init__(self, df: pd.DataFrame, analyzer: DataAnalyzer,
+                 analysis_result: Optional[pd.DataFrame] = None):
         self.df = df
         self.analyzer = analyzer
+        self.analysis_result = analysis_result
 
     def generate_word(self, config: ReportConfig, reporter: WordReporter,
                       chart_figures: Optional[Dict[str, Figure]] = None) -> WordReporter:
@@ -115,6 +117,11 @@ class ReportGenerator:
                 subset = self.df.head(max_rows)
             reporter.add_table_from_df(subset)
 
+        elif stype == 'analysis_result':
+            reporter.add_title(title, level=1)
+            if self.analysis_result is not None and not self.analysis_result.empty:
+                reporter.add_table_from_df(self.analysis_result.round(2))
+
     def generate_excel(self, config: ReportConfig, exporter: ExcelExporter, file_path: str):
         """根据配置生成 Excel 报告（每个章节一个工作表）"""
         from openpyxl.styles import Font, PatternFill
@@ -153,6 +160,10 @@ class ReportGenerator:
             elif stype == 'text':
                 pd.DataFrame({'内容': [section.config.get('text', '')]}).to_excel(
                     writer, sheet_name=sheet_name, index=False)
+
+            elif stype == 'analysis_result':
+                if self.analysis_result is not None and not self.analysis_result.empty:
+                    self.analysis_result.round(2).to_excel(writer, sheet_name=sheet_name, index=False)
 
         writer.close()
 
