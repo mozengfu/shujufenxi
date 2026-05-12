@@ -121,28 +121,32 @@ class AISummarizer:
     def _call_ai(self, prompt: str) -> str:
         """调用 AI 后端生成总结
 
-        接入不同 AI 服务只需修改此方法。
-
-        Claude API 示例：
-            import httpx
-            headers = {
-                'x-api-key': self.api_key,
-                'anthropic-version': '2023-06-01',
-                'content-type': 'application/json',
-            }
-            body = {
-                'model': self.model,
-                'max_tokens': 1000,
-                'messages': [{'role': 'user', 'content': prompt}],
-            }
-            resp = httpx.post(self.endpoint, headers=headers, json=body)
-            return resp.json()['content'][0]['text']
-
-        OpenAI 示例：
-            from openai import OpenAI
-            client = OpenAI(api_key=self.api_key, base_url=self.endpoint)
-            resp = client.chat.completions.create(model=self.model, messages=[{'role': 'user', 'content': prompt}])
-            return resp.choices[0].message.content
+        当前使用 Anthropic Claude API。
         """
-        # TODO: 接入真实 API
-        return 'AI 总结功能待接入。请在 AISummarizer._call_ai() 方法中配置真实 API。'
+        import httpx
+
+        headers = {
+            'x-api-key': self.api_key,
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json',
+        }
+        body = {
+            'model': self.model,
+            'max_tokens': 2000,
+            'messages': [{'role': 'user', 'content': prompt}],
+        }
+        try:
+            resp = httpx.post(self.endpoint, headers=headers, json=body, timeout=60.0)
+            resp.raise_for_status()
+            return resp.json()['content'][0]['text']
+        except httpx.TimeoutException:
+            return 'AI 总结生成超时，请检查网络连接或稍后重试。'
+        except httpx.HTTPStatusError as e:
+            detail = ''
+            try:
+                detail = e.response.json().get('error', {}).get('message', str(e))
+            except Exception:
+                detail = str(e)
+            return f'AI 总结生成失败（HTTP {e.response.status_code}）：{detail}'
+        except Exception as e:
+            return f'AI 总结生成出错：{e}'

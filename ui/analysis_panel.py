@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
                               QPushButton, QMessageBox, QListWidget,
                               QListWidgetItem, QLineEdit, QDialog, QFormLayout,
                               QCheckBox)
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QSettings
 from PyQt5.QtGui import QDragEnterEvent, QDropEvent
 import pandas as pd
 import numpy as np
@@ -177,7 +177,13 @@ class AnalysisPanel(QWidget):
         self.condition_items: List[Dict] = []  # 当前筛选条件列表
         self.last_result_df: pd.DataFrame = None  # 最后一次分析结果
         self.importer = TableImporter()
-        self.summarizer = AISummarizer()
+        # 从 QSettings 读取 AI 配置
+        settings = QSettings('shujufenxi', 'settings')
+        self.summarizer = AISummarizer(
+            api_key=settings.value('ai_api_key', ''),
+            model=settings.value('ai_model', 'claude-sonnet-4-6'),
+            endpoint=settings.value('ai_endpoint', 'https://api.anthropic.com/v1/messages'),
+        )
         self.setAcceptDrops(True)
         self.init_ui()
 
