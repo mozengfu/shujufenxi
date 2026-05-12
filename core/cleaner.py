@@ -34,11 +34,13 @@ class DataCleaner:
         elif to_type == 'float':
             result[col] = pd.to_numeric(result[col], errors='coerce')
         elif to_type == 'str':
-            result[col] = result[col].astype(str)
+            result[col] = result[col].astype(str).replace('nan', pd.NA)
         elif to_type == 'date':
-            result[col] = pd.to_datetime(result[col], errors='coerce')
+            result[col] = pd.to_datetime(result[col], errors='coerce').dt.date
         elif to_type == 'datetime':
             result[col] = pd.to_datetime(result[col], errors='coerce')
+        else:
+            raise ValueError(f'不支持的转换类型: {to_type}')
 
         return result
 
@@ -166,7 +168,7 @@ class DataCleaner:
         result = df.copy()
         # 保留 NaN，只对非空值操作
         mask = result[col].notna()
-        result.loc[mask, col] = result.loc[mask, col].astype(str).replace(old_val, new_val)
+        result.loc[mask, col] = result.loc[mask, col].astype(str).str.replace(old_val, new_val, regex=False)
         return result
 
     def trim_whitespace(self, df: pd.DataFrame, col: str) -> pd.DataFrame:
@@ -222,7 +224,7 @@ class DataCleaner:
         if subset is None:
             return df.drop_duplicates()
         else:
-            valid_subset = [c for c in subset if c in df.columns]
-            if not valid_subset:
-                return df.drop_duplicates()
-            return df.drop_duplicates(subset=valid_subset)
+            invalid = [c for c in subset if c not in df.columns]
+            if invalid:
+                raise ValueError(f'列不存在于数据中: {", ".join(invalid)}')
+            return df.drop_duplicates(subset=subset)

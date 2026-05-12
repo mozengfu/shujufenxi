@@ -132,10 +132,17 @@ class ColumnCalcDialog(QDialog):
             return None
 
         try:
-            # 替换 {col} → df['col'] 以支持含空格的列名
-            expr = re.sub(r'\{([^}]+)\}', r"df['\1']", raw)
-            # 安全执行：只允许有限的操作
-            result = eval(expr, {'df': self.source_df, 'pd': pd, 'np': np})
+            # 替换 {col} → 安全别名，用于 pd.eval 的 local_dict
+            # pd.eval 不支持 df['col'] 语法，只能用裸列名
+            col_names = re.findall(r'\{([^}]+)\}', raw)
+            local_dict = {}
+            expr = raw
+            for i, col in enumerate(col_names):
+                alias = f'_col{i}'
+                local_dict[alias] = self.source_df[col]
+                expr = expr.replace('{' + col + '}', alias, 1)
+            # 使用 pandas.eval 替代 eval，限制在算术表达式范围内
+            result = pd.eval(expr, local_dict=local_dict)
             if isinstance(result, pd.Series):
                 return result
             # 标量结果转为 Series

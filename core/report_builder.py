@@ -8,6 +8,7 @@ from matplotlib.figure import Figure
 from core.reporter import WordReporter
 from core.exporter import ExcelExporter
 from core.analyzer import DataAnalyzer
+from core.ai_summarizer import AISummarizer
 
 
 @dataclass
@@ -50,10 +51,12 @@ class ReportGenerator:
     """报表生成引擎，根据 ReportConfig 生成 Word/Excel 报告"""
 
     def __init__(self, df: pd.DataFrame, analyzer: DataAnalyzer,
-                 analysis_result: Optional[pd.DataFrame] = None):
+                 analysis_result: Optional[pd.DataFrame] = None,
+                 ai_summarizer: Optional[AISummarizer] = None):
         self.df = df
         self.analyzer = analyzer
         self.analysis_result = analysis_result
+        self.ai_summarizer = ai_summarizer
 
     def generate_word(self, config: ReportConfig, reporter: WordReporter,
                       chart_figures: Optional[Dict[str, Figure]] = None) -> WordReporter:
@@ -120,7 +123,30 @@ class ReportGenerator:
         elif stype == 'analysis_result':
             reporter.add_title(title, level=1)
             if self.analysis_result is not None and not self.analysis_result.empty:
-                reporter.add_table_from_df(self.analysis_result.round(2))
+                res = self.analysis_result
+                num_cols = res.select_dtypes(include='number').columns
+                if len(num_cols) > 0:
+                    res = res.copy()
+                    res[num_cols] = res[num_cols].round(2)
+                reporter.add_table_from_df(res)
+
+        elif stype == 'ai_summary':
+            reporter.add_title(title, level=1)
+            summary_text = section.config.get('ai_summary_text', '')
+            if summary_text:
+                # 使用预生成的总结
+                reporter.add_paragraph(summary_text)
+            elif self.ai_summarizer:
+                # 实时调用 AI 生成
+                stats = self.analyzer.descriptive_stats(self.df)
+                quality = self.analyzer.full_quality_report(self.df)
+                summary_text = self.ai_summarizer.summarize(
+                    df=self.df, stats=stats, quality_report=quality,
+                    analysis_result=self.analysis_result,
+                )
+                reporter.add_paragraph(summary_text)
+            else:
+                reporter.add_paragraph('AI 总结功能待接入。请在设置中配置 API Key。')
 
     def generate_excel(self, config: ReportConfig, exporter: ExcelExporter, file_path: str):
         """根据配置生成 Excel 报告（每个章节一个工作表）"""
@@ -155,7 +181,44 @@ class ReportGenerator:
 
             elif stype == 'quality':
                 report = self.analyzer.full_quality_report(self.df)
-                exporter.export_quality_report(report, file_path)
+                # 使用 section 标题作为前缀避免多 quality section 时 sheet 名冲突
+                prefix = (section.title or '质量')[:10]
+                if report.get('missing'):
+                    missing_data = []
+                    for col, info in report['missing'].items():
+                        missing_data.append({
+                            '列名': col,
+                            '缺失数量': info['count'],
+                            '缺失百分比': f"{info['percentage']}%",
+                            '行号': ', '.join(map(str, info['rows'][:20]))
+                        })
+                    pd.DataFrame(missing_data).to_excel(writer, sheet_name=f'{prefix}_缺失值'[:31], index=False)
+                if report.get('outliers'):
+                    outlier_data = []
+                    for col, info in report['outliers'].items():
+                        outlier_data.append({
+                            '列名': col,
+                            '异常数量': info['count'],
+                            '下界': info.get('lower_bound'),
+                            '上界': info.get('upper_bound'),
+                            '值': ', '.join(map(str, info['values'][:10]))
+                        })
+                    pd.DataFrame(outlier_data).to_excel(writer, sheet_name=f'{prefix}_异常值'[:31], index=False)
+                if report.get('duplicates'):
+                    dup = report['duplicates']
+                    pd.DataFrame([{
+                        '重复行数': dup['count'],
+                        '占比': f"{dup['percentage']}%",
+                        '行号': ', '.join(map(str, dup['rows'][:20]))
+                    }]).to_excel(writer, sheet_name=f'{prefix}_重复行'[:31], index=False)
+
+            elif stype == 'comparison':
+                comparison = section.config.get('comparison_data')
+                if comparison and isinstance(comparison, dict):
+                    for label, df in comparison.items():
+                        sheet = f'{sheet_name}_{label}'[:31] if len(comparison) > 1 else sheet_name
+                        if isinstance(df, pd.DataFrame) and not df.empty:
+                            df.to_excel(writer, sheet_name=sheet, index=False)
 
             elif stype == 'text':
                 pd.DataFrame({'内容': [section.config.get('text', '')]}).to_excel(
@@ -163,7 +226,25 @@ class ReportGenerator:
 
             elif stype == 'analysis_result':
                 if self.analysis_result is not None and not self.analysis_result.empty:
-                    self.analysis_result.round(2).to_excel(writer, sheet_name=sheet_name, index=False)
+                    res = self.analysis_result
+                    num_cols = res.select_dtypes(include='number').columns
+                    if len(num_cols) > 0:
+                        res = res.copy()
+                        res[num_cols] = res[num_cols].round(2)
+                    res.to_excel(writer, sheet_name=sheet_name, index=False)
+
+            elif stype == 'ai_summary':
+                summary_text = section.config.get('ai_summary_text', '')
+                if summary_text:
+                    pd.DataFrame({'内容': [summary_text]}).to_excel(writer, sheet_name=sheet_name, index=False)
+                elif self.ai_summarizer:
+                    stats = self.analyzer.descriptive_stats(self.df)
+                    quality = self.analyzer.full_quality_report(self.df)
+                    summary_text = self.ai_summarizer.summarize(
+                        df=self.df, stats=stats, quality_report=quality,
+                        analysis_result=self.analysis_result,
+                    )
+                    pd.DataFrame({'AI 总结': [summary_text]}).to_excel(writer, sheet_name=sheet_name, index=False)
 
         writer.close()
 
@@ -186,5 +267,7 @@ class ReportGenerator:
             'comparison': '对比分析',
             'chart': '分析图表',
             'data_table': '数据明细',
+            'analysis_result': '分析结果',
+            'ai_summary': 'AI 数据解读',
         }
         return titles.get(section_type, '未命名章节')

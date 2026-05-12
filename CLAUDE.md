@@ -36,6 +36,14 @@ python build_windows.py
 ## 调试
 - **崩溃日志**：打包后双击无响应时，查看桌面 `数据分析系统_crash.log`（main.py 自动写入 Python traceback + 环境信息）
 - **Qt 插件路径**：`QT_QPA_PLATFORM_PLUGIN_PATH` 环境变量在 main.py 中自动探测，无需手动设置
+- **Windows DLL 加载失败**：若提示 `DLL load failed while importing QtWidgets`，原因是缺 MSVC 运行库或 `qwindows.dll` 缺失。解决：安装 [vc_redist.x64.exe](https://aka.ms/vs/17/release/vc_redist.x64.exe)，或打包时在 spec 中加 `--win-private-assemblies`。详见 `WINDOWS_BUILD.md`。
+
+## 项目规划
+`.planning/` 目录存放项目规划文档：
+- `config.json` — 工作流配置（原子提交、ruff 验证、顺序执行）
+- `PROJECT.md` — 项目概述
+- `ROADMAP.md` — 功能路线图
+- `STATE.md` — 当前开发状态
 
 ## 目录结构
 ```

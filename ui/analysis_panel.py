@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
                               QPushButton, QMessageBox, QListWidget,
                               QListWidgetItem, QLineEdit, QDialog, QFormLayout,
                               QCheckBox)
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QSettings
 from PyQt5.QtGui import QDragEnterEvent, QDropEvent
 import pandas as pd
 import numpy as np
@@ -15,6 +15,7 @@ from .field_selector import FieldSelector
 from .chart_widget import ChartWidget
 from core import TableImporter
 from core.analyzer import AGG_FUNCTIONS, make_total_row, is_percent_col
+from core.ai_summarizer import AISummarizer
 
 
 def _fmt_value(value) -> str:
@@ -176,6 +177,13 @@ class AnalysisPanel(QWidget):
         self.condition_items: List[Dict] = []  # 当前筛选条件列表
         self.last_result_df: pd.DataFrame = None  # 最后一次分析结果
         self.importer = TableImporter()
+        # 从 QSettings 读取 AI 配置
+        settings = QSettings('shujufenxi', 'settings')
+        self.summarizer = AISummarizer(
+            api_key=settings.value('ai_api_key', ''),
+            model=settings.value('ai_model', 'claude-sonnet-4-6'),
+            endpoint=settings.value('ai_endpoint', 'https://api.anthropic.com/v1/messages'),
+        )
         self.setAcceptDrops(True)
         self.init_ui()
 
@@ -427,6 +435,22 @@ class AnalysisPanel(QWidget):
         chart_layout.addWidget(self.chart_widget)
         self.chart_tab.setLayout(chart_layout)
         self.tab_widget.addTab(self.chart_tab, '图表')
+
+        # AI 总结标签页
+        self.ai_tab = QWidget()
+        ai_layout = QVBoxLayout()
+        self.ai_summary_edit = QTextEdit()
+        self.ai_summary_edit.setPlaceholderText('点击"生成 AI 总结"按钮，AI 将根据当前分析结果解读数据含义。')
+        ai_layout.addWidget(self.ai_summary_edit)
+
+        ai_btn_layout = QHBoxLayout()
+        self.ai_gen_btn = QPushButton('生成 AI 总结')
+        self.ai_gen_btn.clicked.connect(self.generate_ai_summary)
+        ai_btn_layout.addWidget(self.ai_gen_btn)
+        ai_btn_layout.addStretch()
+        ai_layout.addLayout(ai_btn_layout)
+        self.ai_tab.setLayout(ai_layout)
+        self.tab_widget.addTab(self.ai_tab, 'AI 总结')
 
         right_layout.addWidget(self.tab_widget)
 
@@ -740,6 +764,32 @@ class AnalysisPanel(QWidget):
         self.chart_widget.clear()
         # 切换到数据预览
         self.tab_widget.setCurrentWidget(self.preview_tab)
+
+    def generate_ai_summary(self):
+        """生成 AI 数据解读总结"""
+        if self.current_df is None:
+            QMessageBox.warning(self, '警告', '请先导入数据')
+            return
+
+        self.ai_summary_edit.setText('正在生成 AI 总结...')
+        self.ai_gen_btn.setEnabled(False)
+
+        # 收集分析上下文
+        stats = self.main_window.analyzer.descriptive_stats(self.current_df) if self.current_df is not None else None
+        quality = self.main_window.analyzer.full_quality_report(self.current_df) if self.current_df is not None else None
+        freq = self.last_result_df if self.last_result_df is not None and '频次' in self.last_result_df.columns else None
+        analysis = self.last_result_df
+
+        summary = self.summarizer.summarize(
+            df=self.current_df,
+            stats=stats,
+            quality_report=quality,
+            freq_result=freq,
+            analysis_result=analysis,
+        )
+
+        self.ai_summary_edit.setText(summary)
+        self.ai_gen_btn.setEnabled(True)
 
     def run_analysis(self):
         """执行分析"""
@@ -1090,14 +1140,14 @@ class AnalysisPanel(QWidget):
 
         # 合计行
         total_row = make_total_row(freq)
-        # 频次列特殊处理：显示总和
-        # 占比%列设为100，累计占比%取最后值
         for j, col in enumerate(freq.columns):
             if col == '占比%':
                 total_row.iloc[j] = 100.0
-            elif col == '累计占比%' and len(freq) > 0:
-                total_row.iloc[j] = freq[col].iloc[-1]
-            item = QTableWidgetItem(_fmt_value(total_row.iloc[j]))
+            if is_percent_col(col):
+                text = _fmt_percent(total_row.iloc[j])
+            else:
+                text = _fmt_value(total_row.iloc[j])
+            item = QTableWidgetItem(text)
             font = item.font()
             font.setBold(True)
             item.setFont(font)

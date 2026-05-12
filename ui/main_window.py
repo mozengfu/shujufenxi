@@ -297,6 +297,13 @@ class MainWindow(QMainWindow):
         calc_action.triggered.connect(self.calc_column)
         data_menu.addAction(calc_action)
 
+        # 设置菜单
+        settings_menu = menubar.addMenu('设置')
+
+        ai_config_action = QAction('AI 配置', self)
+        ai_config_action.triggered.connect(self.show_ai_config)
+        settings_menu.addAction(ai_config_action)
+
         # 窗口菜单（macOS 原生菜单，覆盖默认英文菜单）
         window_menu = menubar.addMenu('窗口')
 
@@ -450,11 +457,13 @@ class MainWindow(QMainWindow):
                 self.reporter.create_document()
                 self.reporter.add_title('数据分析报告', level=0)
 
-                stats = self.analyzer.descriptive_stats(self.current_df)
-                self.reporter.add_stats_report(stats)
+                if dialog.include_stats:
+                    stats = self.analyzer.descriptive_stats(self.current_df)
+                    self.reporter.add_stats_report(stats)
 
-                report = self.analyzer.full_quality_report(self.current_df)
-                self.reporter.add_quality_report(report)
+                if dialog.include_quality:
+                    report = self.analyzer.full_quality_report(self.current_df)
+                    self.reporter.add_quality_report(report)
 
                 if self.last_comparison:
                     self.reporter.add_comparison_report(self.last_comparison)
@@ -525,4 +534,10 @@ class MainWindow(QMainWindow):
         layout.addLayout(btn_layout)
 
         dialog.setLayout(layout)
+        dialog.exec_()
+
+    def show_ai_config(self):
+        """显示 AI 配置对话框"""
+        from .ai_config_dialog import AIConfigDialog
+        dialog = AIConfigDialog(self)
         dialog.exec_()

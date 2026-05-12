@@ -176,9 +176,9 @@ class ExcelExporter:
         with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
             # 基本对比信息
             comparison_df = pd.DataFrame([
-                {'对比项': 'df1行数', 'df2行数': comparison_result.get('df1_rows', comparison_result.get('row_diff', 0))},
-                {'对比项': 'df2行数', 'df2行数': comparison_result.get('df2_rows', '')},
-                {'对比项': '结果行数', 'df2行数': comparison_result.get('result_rows', '')},
+                {'对比项': 'df1行数', '值': comparison_result.get('df1_rows', comparison_result.get('row_diff', 0))},
+                {'对比项': 'df2行数', '值': comparison_result.get('df2_rows', '')},
+                {'对比项': '结果行数', '值': comparison_result.get('result_rows', '')},
             ])
             comparison_df.to_excel(writer, sheet_name='对比结果', index=False)
 

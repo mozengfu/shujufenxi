@@ -18,6 +18,7 @@ AVAILABLE_SECTIONS = [
     ('data_table', '数据明细表'),
     ('chart', '分析图表'),
     ('analysis_result', '分析结果'),
+    ('ai_summary', 'AI 数据解读'),
 ]
 
 
