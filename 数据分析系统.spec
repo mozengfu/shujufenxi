@@ -6,6 +6,7 @@
 import sys
 import PyQt5
 from pathlib import Path
+from PyInstaller.utils.hooks import collect_all
 
 sys.setrecursionlimit(10000)
 
@@ -14,18 +15,20 @@ if not Path(qt_plugins).exists():
     # Conda 环境：插件在 conda prefix 下
     qt_plugins = '/opt/anaconda3/plugins'
 
+# 强制打包完整的 httpx 模块（hiddenimports 不够用）
+httpx_datas, httpx_bins, httpx_imports = collect_all('httpx')
+
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
     datas=[
         (qt_plugins, 'plugins'),
-    ],
+    ] + httpx_datas,
     hiddenimports=[
         'matplotlib.backends.backend_qtagg',
         'matplotlib.backends.backend_agg',
-        'httpx',
-    ],
+    ] + httpx_imports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

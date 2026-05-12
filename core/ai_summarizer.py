@@ -94,7 +94,7 @@ class AISummarizer:
         """构建对话用的系统提示"""
         lines = []
         lines.append('你是一位资深数据分析师，正在帮助用户分析一份数据。')
-        lines.append('请用业务语言回答，不要罗列过多数字，给出可操作的洞察。')
+        lines.append('请用业务语言回答，用结构化的方式给出洞察，包括分组排名、趋势和可操作建议。')
         lines.append('')
 
         lines.append(f'数据概况：{len(df)} 行，{len(df.columns)} 列')
@@ -140,12 +140,34 @@ class AISummarizer:
     ) -> str:
         """构建 AI 解读用的 prompt"""
         lines = []
-        lines.append('你是一位资深数据分析师。请根据以下数据和分析结果，用中文写一段业务洞察总结。')
-        lines.append('要求：')
-        lines.append('1. 用业务语言，不要罗列数字')
-        lines.append('2. 指出数据反映出的关键现象和趋势')
-        lines.append('3. 给出可操作的建议')
-        lines.append('4. 控制在 200 字以内')
+        lines.append('你是一位资深数据分析师。请根据以下数据和分析结果，用中文撰写一份结构化的业务洞察报告。')
+        lines.append('')
+        lines.append('【分析要求】')
+        lines.append('')
+        lines.append('一、数据概况：简要说明数据规模、核心字段含义和业务场景。')
+        lines.append('')
+        lines.append('二、核心发现（按主要分组维度展开）：')
+        lines.append('  如果存在分组列，请围绕分组维度进行解读，包括：')
+        lines.append('  1. 各组的整体表现和排名情况')
+        lines.append('  2. 占比最高的前3名（TOP3），给出具体数值和占比百分比')
+        lines.append('  3. 表现最差的后3名（BOTTOM3），给出具体数值和占比百分比')
+        lines.append('  4. 各组之间的差异和对比分析')
+        lines.append('')
+        lines.append('三、趋势与异常：')
+        lines.append('  1. 数据中的明显趋势、周期性变化或极值')
+        lines.append('  2. 数据质量问题（缺失、异常值、重复）及其可能的影响')
+        lines.append('  3. 如有频次分析结果，指出最常见的取值和分布特点')
+        lines.append('')
+        lines.append('四、内容分析：')
+        lines.append('  结合上述所有分析，给出你的专业判断，指出值得关注的现象。')
+        lines.append('')
+        lines.append('五、建议：')
+        lines.append('  基于分析结果给出2-4条具体、可操作的业务建议。')
+        lines.append('')
+        lines.append('【注意事项】')
+        lines.append('- 用业务语言描述，不要只列数字，要有解读和判断')
+        lines.append('- TOP3/BOTTOM3 等结论要有数据支撑，给出具体百分比')
+        lines.append('- 如果数据中不包含分组列或某些信息不足，如实说明即可')
         lines.append('')
 
         # 数据概况
@@ -194,13 +216,71 @@ class AISummarizer:
     def _call_api(self, messages: List[Dict[str, str]], system_prompt: str = '') -> str:
         """调用 AI 后端生成回复
 
-        使用 Anthropic Claude API。
+        支持 OpenAI 兼容格式（默认）和 Anthropic Claude 原生格式。
+        先尝试 OpenAI 兼容调用，失败后自动回退到 Claude 格式。
         """
         try:
             import httpx
         except ImportError:
             return 'AI 功能依赖 httpx 库，请先运行 pip install httpx 安装。'
 
+        # 调试日志
+        log = (f'Endpoint: {self.endpoint}, Model: {self.model}, '
+               f'Key len: {len(self.api_key) if self.api_key else 0}')
+
+        # 优先尝试 OpenAI 兼容格式
+        result = self._call_openai_compat(httpx, messages, system_prompt, log)
+        if result is not None:
+            return result
+
+        # 回退到 Claude 原生格式
+        return self._call_claude_native(httpx, messages, system_prompt, log)
+
+    def _call_openai_compat(
+        self, httpx, messages: List[Dict[str, str]], system_prompt: str = '', log: str = ''
+    ) -> str | None:
+        """OpenAI 兼容格式调用，失败时：
+        - 401/403/5xx 直接返回错误字符串（不回退）
+        - 404/连接错误返回 None（回退到 Claude 格式）
+        """
+        headers = {
+            'Authorization': f'Bearer {self.api_key}',
+            'content-type': 'application/json',
+        }
+        body: dict = {
+            'model': self.model,
+            'max_tokens': 4096,
+            'messages': messages,
+        }
+        if system_prompt:
+            body['messages'] = [{'role': 'system', 'content': system_prompt}] + messages
+        try:
+            resp = httpx.post(self.endpoint, headers=headers, json=body, timeout=60.0, follow_redirects=True)
+            resp.raise_for_status()
+            return resp.json()['choices'][0]['message']['content']
+        except httpx.HTTPStatusError as e:
+            detail = self._extract_error_detail(e.response)
+            if e.response.status_code in (401, 403):
+                return f'AI 响应生成失败（HTTP {e.response.status_code}）：{detail} [{log}]'
+            if e.response.status_code >= 500:
+                return f'AI 服务不可用（HTTP {e.response.status_code}）：{detail} [{log}]'
+            return None
+        except (httpx.TimeoutException, httpx.ConnectError, KeyError, ValueError):
+            return None
+        except Exception:
+            return None
+
+    @staticmethod
+    def _extract_error_detail(response) -> str:
+        try:
+            return response.json().get('error', {}).get('message', str(response.status_code))
+        except Exception:
+            return str(response.status_code)
+
+    def _call_claude_native(
+        self, httpx, messages: List[Dict[str, str]], system_prompt: str = '', log: str = ''
+    ) -> str:
+        """Claude 原生格式调用"""
         headers = {
             'x-api-key': self.api_key,
             'anthropic-version': '2023-06-01',
@@ -214,7 +294,7 @@ class AISummarizer:
         if system_prompt:
             body['system'] = system_prompt
         try:
-            resp = httpx.post(self.endpoint, headers=headers, json=body, timeout=60.0)
+            resp = httpx.post(self.endpoint, headers=headers, json=body, timeout=60.0, follow_redirects=True)
             resp.raise_for_status()
             return resp.json()['content'][0]['text']
         except httpx.TimeoutException:

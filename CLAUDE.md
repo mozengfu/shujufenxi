@@ -7,6 +7,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 技术栈：PyQt5 + pandas + openpyxl + python-docx + matplotlib
 
+## 功能清单
+- **导入**: 支持 xlsx / xls / csv，自动编码检测
+- **描述性统计**: 计数、求和、均值、中位数、标准差、分位数等
+- **数据质量检测**: 缺失值、异常值（IQR / Z-score）、重复行、格式问题
+- **分组分析**: 多列分组 + 自定义聚合（含占比、累计占比、排名、百分位排名）
+- **频次分析**: 单列 / 多列交叉频次统计
+- **同比 / 环比分析**: 按月 / 按季聚合后与上期对比
+- **多表合并**: 关键列合并 / 行追加合并
+- **数据清洗**: 类型转换、列拆分、字符操作、去重、填充
+- **列计算**: 表达式计算创建新列
+- **导出**: 带格式的 Excel 报表 + Word 报告
+- **自定义报表**: 可视化设计器，支持标题 / 统计 / 质量 / 文本 / 表格 / 图表六种区块
+- **AI 摘要**: 调用外部 API 生成数据分析摘要
+- **AI 多轮对话**: 对分析结果进行交互式问答与解读
+
 ## 常用命令
 ```bash
 # 安装依赖
@@ -78,6 +93,7 @@ shujufenxi/
     ├── column_calc_dialog.py # ColumnCalcDialog - 表达式列计算（Python eval in DataFrame scope）
     ├── chart_widget.py       # ChartWidget - matplotlib 嵌入 PyQt（直方图/箱线图/柱状图/分组图）
     ├── ai_config_dialog.py   # AIConfigDialog - AI 摘要 API 配置对话框
+    ├── ai_chat_dialog.py     # AIChatDialog - AI 多轮对话（分析结果解读/问答）
     └── help_dialog.py        # HelpDialog - 使用指南
 ```
 
@@ -120,8 +136,8 @@ shujufenxi/
 ### 列计算
 `ui/column_calc_dialog.py` 提供表达式列计算功能，使用 Python eval 在 DataFrame 作用域内计算，语法为 `{column_name}` 引用已有列。
 
-### AI 摘要
-`core/ai_summarizer.py` 提供 AISummarizer 类，调用外部 API 生成数据分析摘要。`ui/ai_config_dialog.py` 提供 API 配置界面（URL、Key、模型等），配置通过 QSettings 持久化。
+### AI 功能
+`core/ai_summarizer.py` 提供 AISummarizer 类，调用外部 API 生成数据分析摘要。`ui/ai_config_dialog.py` 提供 API 配置界面（URL、Key、模型等），配置通过 QSettings 持久化。`ui/ai_chat_dialog.py` 提供 AI 多轮对话窗口，支持对分析结果进行交互式问答。
 
 ### 拖放支持
 MainWindow、AnalysisPanel、FieldSelector 均实现 dragEnterEvent/dropEvent 支持文件拖放导入。

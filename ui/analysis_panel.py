@@ -765,11 +765,31 @@ class AnalysisPanel(QWidget):
         # 切换到数据预览
         self.tab_widget.setCurrentWidget(self.preview_tab)
 
+    def _refresh_ai_config(self):
+        """在调用 AI 前重新读取配置，避免使用初始化时的旧值"""
+        settings = QSettings('shujufenxi', 'settings')
+        self.summarizer.api_key = settings.value('ai_api_key', '')
+        self.summarizer.model = settings.value('ai_model', 'claude-sonnet-4-6')
+        self.summarizer.endpoint = settings.value('ai_endpoint', 'https://api.anthropic.com/v1/messages')
+
     def generate_ai_summary(self):
         """生成 AI 数据解读总结"""
         if self.current_df is None:
             QMessageBox.warning(self, '警告', '请先导入数据')
             return
+
+        # 重新读取最新 AI 配置
+        self._refresh_ai_config()
+        if not self.summarizer.api_key:
+            QMessageBox.warning(self, '警告', '请先在 AI 配置中设置 API Key')
+            return
+
+        # 调试信息：显示当前配置
+        ep = self.summarizer.endpoint
+        model = self.summarizer.model
+        key_preview = self.summarizer.api_key[:10] + '...' if self.summarizer.api_key else '(empty)'
+        from PyQt5.QtWidgets import QMessageBox
+        QMessageBox.information(self, 'AI 配置', f'Endpoint: {ep}\nModel: {model}\nKey: {key_preview}')
 
         self.ai_summary_edit.setText('正在生成 AI 总结...')
         self.ai_gen_btn.setEnabled(False)
