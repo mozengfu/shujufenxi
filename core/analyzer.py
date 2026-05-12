@@ -334,13 +334,24 @@ class DataAnalyzer:
                 if col not in df.columns:
                     continue
 
-                # 检查是否为数值的列（占比、累计占比只能在数值列上计算）
+                # 找出对应的常规聚合函数类型（用于判断是否 count 类）
+                base_func = None
+                for rspec in agg_specs:
+                    if rspec.get('col') == col and rspec.get('func') not in ('占比', '累计占比', '排名', '百分位排名'):
+                        base_func = rspec.get('func')
+                        break
+
+                # 检查是否为数值的列（占比、累计占比、排名、百分位排名通常需要数值列；count/size 聚合的结果本身就是数值，不受原列类型限制）
                 is_numeric = _is_numeric(df[col])
 
                 # 计算该列的总和/累计等用于基准计算
                 if func_type == '占比':
-                    if is_numeric:
-                        grand_total = df[col].sum()
+                    if is_numeric or base_func in ('计数', '行数'):
+                        if base_func in ('计数', '行数'):
+                            # count/size 类型：分母为各组计数之和
+                            grand_total = result_df[base_alias].sum() if base_alias and base_alias in result_df.columns else 0
+                        else:
+                            grand_total = df[col].sum()
                         if grand_total != 0 and base_alias and base_alias in result_df.columns:
                             result_df[alias] = result_df[base_alias] / grand_total * 100
                         else:
@@ -349,33 +360,40 @@ class DataAnalyzer:
                         result_df[alias] = np.nan
 
                 elif func_type == '累计占比':
-                    if is_numeric and base_alias and base_alias in result_df.columns:
-                        grouped_sum = df.groupby(valid_group_cols)[col].sum().sort_values(ascending=False)
-                        cumsum_values = grouped_sum.cumsum()
-                        grand_total = df[col].sum()
-                        if grand_total != 0:
-                            cumsum_pct = (cumsum_values / grand_total * 100).reset_index()
-                            result_df = result_df.merge(
-                                cumsum_pct, on=valid_group_cols, how='left', suffixes=('', '_cumsum')
-                            )
-                            col_name = cumsum_pct.columns[-1]
-                            result_df[alias] = result_df[col_name].fillna(np.nan)
-                            if col_name != alias:
-                                result_df = result_df.drop(columns=[col_name])
+                    if (is_numeric or base_func in ('计数', '行数')) and base_alias and base_alias in result_df.columns:
+                        if base_func in ('计数', '行数'):
+                            grand_total = result_df[base_alias].sum()
+                            if grand_total != 0:
+                                result_df[alias] = (result_df[base_alias].cumsum() / grand_total * 100).round(2)
+                            else:
+                                result_df[alias] = np.nan
                         else:
-                            result_df[alias] = np.nan
+                            grouped_sum = df.groupby(valid_group_cols)[col].sum().sort_values(ascending=False)
+                            cumsum_values = grouped_sum.cumsum()
+                            grand_total = df[col].sum()
+                            if grand_total != 0:
+                                cumsum_pct = (cumsum_values / grand_total * 100).reset_index()
+                                result_df = result_df.merge(
+                                    cumsum_pct, on=valid_group_cols, how='left', suffixes=('', '_cumsum')
+                                )
+                                col_name = cumsum_pct.columns[-1]
+                                result_df[alias] = result_df[col_name].fillna(np.nan)
+                                if col_name != alias:
+                                    result_df = result_df.drop(columns=[col_name])
+                            else:
+                                result_df[alias] = np.nan
                     else:
                         result_df[alias] = np.nan
 
                 elif func_type == '排名':
-                    # 排名只能在数值列上计算
-                    if is_numeric and base_alias and base_alias in result_df.columns:
+                    # 排名基于已有聚合结果，count/size 的聚合结果也是数值
+                    if (is_numeric or base_func in ('计数', '行数')) and base_alias and base_alias in result_df.columns:
                         result_df[alias] = result_df[base_alias].rank(method='dense')
                     else:
                         result_df[alias] = np.nan
 
                 elif func_type == '百分位排名':
-                    if is_numeric and base_alias and base_alias in result_df.columns:
+                    if (is_numeric or base_func in ('计数', '行数')) and base_alias and base_alias in result_df.columns:
                         result_df[alias] = result_df[base_alias].rank(pct=True) * 100
                     else:
                         result_df[alias] = np.nan
@@ -415,6 +433,7 @@ class DataAnalyzer:
             grouped = df.groupby(valid_cols, dropna=False).size().reset_index(name='频次')
             grouped = grouped.sort_values('频次', ascending=False).reset_index(drop=True)
             grouped['占比%'] = (grouped['频次'] / len(df) * 100).round(2)
+            grouped['累计占比%'] = grouped['占比%'].cumsum().round(2)
             return grouped
 
     def _get_agg_func(self, func: str, params: Dict = None) -> Optional[Callable]:
@@ -620,7 +639,7 @@ class DataAnalyzer:
 
             # 计算占比（行数按组总数时不需要数值列，其他模式需要数值列做求和）
             is_size_percent = func_type == 'size' and show_percent
-            if show_percent and (is_size_percent or _is_numeric(df[col])):
+            if show_percent and (is_size_percent or func_type == 'count' or _is_numeric(df[col])):
                 percent_mode = item.get('percent_mode', 'column')
                 percent_alias = f'{alias}占比'
                 if percent_mode == 'group':
@@ -641,7 +660,7 @@ class DataAnalyzer:
                     )
                 else:
                     # 按列总和计算占比（现有行为）
-                    if func_type == 'size':
+                    if func_type in ('size', 'count'):
                         grand_total = agg_result[alias].sum()
                     else:
                         grand_total = filtered_df[col].sum()
@@ -716,13 +735,16 @@ class DataAnalyzer:
                 if std == 0 or pd.isna(std):
                     continue  # 跳过无变化的列
                 z_scores = np.abs((df[col] - df[col].mean()) / std)
+                mean = df[col].mean()
+                lower = mean - 3 * std
+                upper = mean + 3 * std
                 outliers = df[z_scores > 3][col]
 
             if len(outliers) > 0:
                 result[col] = {
                     'count': len(outliers),
-                    'lower_bound': lower if method == 'IQR' else None,
-                    'upper_bound': upper if method == 'IQR' else None,
+                    'lower_bound': lower if method == 'IQR' else round(lower, 2),
+                    'upper_bound': upper if method == 'IQR' else round(upper, 2),
                     'values': outliers.tolist()[:100]
                 }
 
@@ -747,13 +769,16 @@ class DataAnalyzer:
                 if std == 0 or pd.isna(std):
                     continue
                 z_scores = np.abs((df[col] - df[col].mean()) / std)
+                mean = df[col].mean()
+                lower = mean - 3 * std
+                upper = mean + 3 * std
                 outliers = df[z_scores > 3][col]
 
             if len(outliers) > 0:
                 result[col] = {
                     'count': len(outliers),
-                    'lower_bound': lower if method == 'IQR' else None,
-                    'upper_bound': upper if method == 'IQR' else None,
+                    'lower_bound': lower if method == 'IQR' else round(lower, 2),
+                    'upper_bound': upper if method == 'IQR' else round(upper, 2),
                     'values': outliers.tolist()[:100]
                 }
 

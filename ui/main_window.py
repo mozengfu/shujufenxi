@@ -450,11 +450,13 @@ class MainWindow(QMainWindow):
                 self.reporter.create_document()
                 self.reporter.add_title('数据分析报告', level=0)
 
-                stats = self.analyzer.descriptive_stats(self.current_df)
-                self.reporter.add_stats_report(stats)
+                if dialog.include_stats:
+                    stats = self.analyzer.descriptive_stats(self.current_df)
+                    self.reporter.add_stats_report(stats)
 
-                report = self.analyzer.full_quality_report(self.current_df)
-                self.reporter.add_quality_report(report)
+                if dialog.include_quality:
+                    report = self.analyzer.full_quality_report(self.current_df)
+                    self.reporter.add_quality_report(report)
 
                 if self.last_comparison:
                     self.reporter.add_comparison_report(self.last_comparison)

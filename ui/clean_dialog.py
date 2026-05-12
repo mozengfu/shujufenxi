@@ -278,16 +278,16 @@ class CleanDialog(QDialog):
         self.stack.setCurrentIndex(index_map.get(clean_type, 0))
 
     def _get_preview_df(self) -> pd.DataFrame:
-        """获取预览用的数据（最多5行）"""
+        """获取预览用的数据（最多10行）"""
         if self.current_df is None:
             return pd.DataFrame()
-        return self.current_df.head()
+        return self.current_df.head(10)
 
     def _update_preview(self, df: pd.DataFrame):
         """更新预览（QTableWidget）"""
         self.result_table.clear()
-        preview = df.head()
-        rows = min(10, len(preview))
+        preview = df.head(10)
+        rows = len(preview)
         cols = len(preview.columns)
 
         self.result_table.setRowCount(rows)
