@@ -10,6 +10,9 @@ from pathlib import Path
 sys.setrecursionlimit(10000)
 
 qt_plugins = str(Path(PyQt5.__file__).parent / 'Qt5' / 'plugins')
+if not Path(qt_plugins).exists():
+    # Conda 环境：插件在 conda prefix 下
+    qt_plugins = '/opt/anaconda3/plugins'
 
 a = Analysis(
     ['main.py'],
@@ -21,6 +24,7 @@ a = Analysis(
     hiddenimports=[
         'matplotlib.backends.backend_qtagg',
         'matplotlib.backends.backend_agg',
+        'httpx',
     ],
     hookspath=[],
     hooksconfig={},

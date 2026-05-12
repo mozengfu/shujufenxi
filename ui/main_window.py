@@ -304,6 +304,11 @@ class MainWindow(QMainWindow):
         ai_config_action.triggered.connect(self.show_ai_config)
         settings_menu.addAction(ai_config_action)
 
+        ai_chat_action = QAction('AI 对话', self)
+        ai_chat_action.setShortcut(QKeySequence('Ctrl+H'))
+        ai_chat_action.triggered.connect(self.show_ai_chat)
+        settings_menu.addAction(ai_chat_action)
+
         # 窗口菜单（macOS 原生菜单，覆盖默认英文菜单）
         window_menu = menubar.addMenu('窗口')
 
@@ -540,4 +545,10 @@ class MainWindow(QMainWindow):
         """显示 AI 配置对话框"""
         from .ai_config_dialog import AIConfigDialog
         dialog = AIConfigDialog(self)
+        dialog.exec_()
+
+    def show_ai_chat(self):
+        """显示 AI 对话对话框"""
+        from .ai_chat_dialog import AIChatDialog
+        dialog = AIChatDialog(self, df=self.current_df)
         dialog.exec_()

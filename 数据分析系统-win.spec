@@ -31,6 +31,7 @@ a = Analysis(
         'PyQt5.sip',
         'matplotlib.backends.backend_qtagg',
         'matplotlib.backends.backend_agg',
+        'httpx',
     ],
     hookspath=[],
     hooksconfig={},

@@ -7,5 +7,6 @@ from .report_dialog import ReportDialog
 from .merge_dialog import MergeDialog
 from .help_dialog import HelpDialog
 from .clean_dialog import CleanDialog
+from .ai_chat_dialog import AIChatDialog
 
-__all__ = ['MainWindow', 'ImportDialog', 'AnalysisPanel', 'FieldSelector', 'ReportDialog', 'MergeDialog', 'HelpDialog', 'CleanDialog']
+__all__ = ['MainWindow', 'ImportDialog', 'AnalysisPanel', 'FieldSelector', 'ReportDialog', 'MergeDialog', 'HelpDialog', 'CleanDialog', 'AIChatDialog']

@@ -52,7 +52,7 @@ shujufenxi/
 ├── requirements.txt          # Python 依赖
 ├── 数据分析系统.spec          # PyInstaller 打包配置 (macOS)
 ├── 数据分析系统-win.spec     # PyInstaller 打包配置 (Windows ONEDIR)
-├── build_windows.spec        # PyInstaller 打包配置 (Windows EXE, 旧版)
+├── build_windows.spec        # PyInstaller 打包配置 (Windows 单 EXE)
 ├── build_windows.py          # Windows PyInstaller 构建脚本
 ├── build.bat                 # Windows 批处理构建脚本
 ├── setup.iss                 # Inno Setup 安装包脚本
@@ -64,7 +64,8 @@ shujufenxi/
 │   ├── importer.py           # TableImporter - xlsx/xls/csv 导入，自动编码
 │   ├── merger.py             # TableMerger - 关键列合并/行追加合并
 │   ├── reporter.py           # WordReporter - docx 报告生成
-│   └── report_builder.py     # ReportConfig/ReportSection 数据模型 + ReportGenerator 引擎
+│   ├── report_builder.py     # ReportConfig/ReportSection 数据模型 + ReportGenerator 引擎
+│   └── ai_summarizer.py      # AISummarizer - AI 摘要生成（调用外部 API）
 └── ui/                       # PyQt5 界面层
     ├── main_window.py        # MainWindow - 主窗口，协调所有模块
     ├── analysis_panel.py     # AnalysisPanel - 核心分析面板，聚合配置/结果展示
@@ -76,6 +77,7 @@ shujufenxi/
     ├── report_designer.py    # ReportDesigner - 自定义报表设计器（支持标题/统计/质量/文本/表格/图表区块）
     ├── column_calc_dialog.py # ColumnCalcDialog - 表达式列计算（Python eval in DataFrame scope）
     ├── chart_widget.py       # ChartWidget - matplotlib 嵌入 PyQt（直方图/箱线图/柱状图/分组图）
+    ├── ai_config_dialog.py   # AIConfigDialog - AI 摘要 API 配置对话框
     └── help_dialog.py        # HelpDialog - 使用指南
 ```
 
@@ -84,7 +86,7 @@ shujufenxi/
 ### 模块职责
 - **core/** 所有类均无 Qt 依赖，可独立测试
 - **ui/** 只做界面编排，业务逻辑委托给 core/
-- **MainWindow** 持有 core 模块的实例（importer, analyzer, merger, exporter, reporter），作为全局共享入口
+- **MainWindow** 持有 core 模块的实例（importer, analyzer, merger, exporter, reporter, ai_summarizer），作为全局共享入口
 - **AnalysisPanel** 是核心工作区，包含 5 个结果标签页：数据预览 / 统计结果 / 质量报告 / 分组对比 / 频次分析
 
 ### 数据流
@@ -93,7 +95,11 @@ shujufenxi/
                                                   ↓
                                           DataAnalyzer 分析
                                                   ↓
+                                      DataCleaner 清洗（可选）
+                                                  ↓
                                 ExcelExporter / WordReporter 导出
+                                                  ↓
+                                     AISummarizer 生成摘要（可选）
 ```
 
 ### 时间序列分析
@@ -114,14 +120,19 @@ shujufenxi/
 ### 列计算
 `ui/column_calc_dialog.py` 提供表达式列计算功能，使用 Python eval 在 DataFrame 作用域内计算，语法为 `{column_name}` 引用已有列。
 
+### AI 摘要
+`core/ai_summarizer.py` 提供 AISummarizer 类，调用外部 API 生成数据分析摘要。`ui/ai_config_dialog.py` 提供 API 配置界面（URL、Key、模型等），配置通过 QSettings 持久化。
+
 ### 拖放支持
 MainWindow、AnalysisPanel、FieldSelector 均实现 dragEnterEvent/dropEvent 支持文件拖放导入。
 
 ### 打包
 - macOS: `pyinstaller 数据分析系统.spec` → 生成 `.app`
-- Windows: `pyinstaller 数据分析系统-win.spec` → 生成 ONEDIR 目录
-- CI/CD: `.github/workflows/build-windows.yml` 推送 `v*` 标签自动构建 Windows 安装包
+- Windows ONEDIR: `pyinstaller 数据分析系统-win.spec` → 生成 `dist/数据分析系统/` 目录
+- Windows 单 EXE: `pyinstaller build_windows.spec` → 生成 `dist/数据分析系统.exe`
+- CI/CD: `.github/workflows/build-windows.yml` 推送 `v*` 标签自动构建 Windows 安装包并创建 Release
 - 关键配置：排除 PyQt6/PySide6，禁用 console，打包 Qt plugins 目录
+- `build_windows.spec` 将 `CLAUDE.md` 打包进应用（供打包后的 AI 参考）
 
 ### 测试
 **项目无自动化测试。** 所有 core/ 模块理论上可独立测试（无 Qt 依赖），但目前没有 test 目录或测试配置。验证主要依靠 `ruff check .` 和手动运行应用。
