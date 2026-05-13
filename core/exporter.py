@@ -409,8 +409,224 @@ class ExcelExporter:
 
         wb.save(file_path)
 
+    def export_complex_report(self, df: pd.DataFrame, template, file_path: str,
+                              sheet_name: str = '报表') -> None:
+        """
+        导出复杂报表（支持多层表头、合并单元格、条件格式）
+
+        Args:
+            df: 数据 DataFrame
+            template: ComplexReportTemplate 实例
+            file_path: 输出文件路径
+            sheet_name: 工作表名称
+        """
+        from core.complex_report import ComplexReportGenerator
+
+        # 生成报表数据
+        generator = ComplexReportGenerator(template)
+        report_df = generator.generate(df)
+
+        # 计算合计行
+        total_row = generator.calculate_total_row(report_df)
+        if total_row is not None:
+            report_df = pd.concat([report_df, total_row.to_frame().T], ignore_index=True)
+
+        path = Path(file_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        # 获取表头结构
+        header_structure = generator.get_header_structure()
+        header_levels = len(header_structure)
+
+        with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
+            # 写入数据（从表头行之后开始）
+            report_df.to_excel(writer, sheet_name=sheet_name, index=False,
+                              startrow=header_levels, header=False)
+
+        # 应用格式
+        from openpyxl import load_workbook
+        wb = load_workbook(file_path)
+        ws = wb[sheet_name]
+
+        # 1. 写入并合并多层表头
+        self._write_multi_headers(ws, header_structure)
+
+        # 2. 应用数据格式
+        self._apply_complex_data_format(ws, report_df, header_levels, template)
+
+        # 3. 应用条件格式
+        self._apply_conditional_format(ws, report_df, header_levels, template)
+
+        # 4. 冻结表头
+        freeze_row = header_levels + 1
+        ws.freeze_panes = f'A{freeze_row}'
+
+        # 5. 自动筛选
+        last_col = get_column_letter(len(report_df.columns))
+        ws.auto_filter.ref = f"A{freeze_row}:{last_col}{ws.max_row}"
+
+        # 6. 打印设置
+        ws.page_setup.orientation = 'landscape' if len(report_df.columns) > 8 else 'portrait'
+        ws.page_setup.paperSize = 9
+        ws.page_setup.fitToPage = True
+        ws.page_setup.fitToWidth = 1
+        ws.page_setup.fitToHeight = 0
+        ws.page_margins = PageMargins(left=0.5, right=0.5, top=0.75, bottom=0.75)
+        ws.print_title_rows = f'1:{header_levels}'
+
+        # 7. 自适应列宽行高
+        self._adjust_complex_column_widths(ws, header_structure, report_df)
+        self._adjust_complex_row_heights(ws, header_levels, report_df)
+
+        wb.save(file_path)
+
+    def _write_multi_headers(self, ws, header_structure: List[List[Dict]]) -> None:
+        """写入多层表头并合并单元格"""
+        header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+        header_font = Font(color="FFFFFF", bold=True, size=11)
+        header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        thin_border = Border(
+            left=Side(style='thin', color='000000'),
+            right=Side(style='thin', color='000000'),
+            top=Side(style='thin', color='000000'),
+            bottom=Side(style='thin', color='000000')
+        )
+
+        col_idx = 1
+        for level_idx, level in enumerate(header_structure):
+            for cell_def in level:
+                # 写入单元格值
+                cell = ws.cell(row=level_idx + 1, column=col_idx, value=cell_def['name'])
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.alignment = header_align
+                cell.border = thin_border
+
+                # 合并单元格
+                if cell_def.get('rowspan', 1) > 1 or cell_def.get('colspan', 1) > 1:
+                    start_row = level_idx + 1
+                    end_row = start_row + cell_def.get('rowspan', 1) - 1
+                    start_col = col_idx
+                    end_col = col_idx + cell_def.get('colspan', 1) - 1
+
+                    ws.merge_cells(
+                        start_row=start_row, start_column=start_col,
+                        end_row=end_row, end_column=end_col
+                    )
+
+                col_idx += cell_def.get('colspan', 1)
+
+    def _apply_complex_data_format(self, ws, df: pd.DataFrame, header_levels: int,
+                                   template) -> None:
+        """应用数据格式"""
+        data_align = Alignment(vertical="center", wrap_text=True)
+        thin_border = Border(
+            left=Side(style='thin', color='000000'),
+            right=Side(style='thin', color='000000'),
+            top=Side(style='thin', color='000000'),
+            bottom=Side(style='thin', color='000000')
+        )
+        total_fill = PatternFill(start_color="E8E8E8", end_color="E8E8E8", fill_type="solid")
+        total_font = Font(bold=True)
+
+        for row_idx in range(header_levels + 1, ws.max_row + 1):
+            is_total_row = (row_idx == ws.max_row and template.total_row.enabled)
+
+            for col_idx in range(1, len(df.columns) + 1):
+                cell = ws.cell(row=row_idx, column=col_idx)
+
+                # 合计行样式
+                if is_total_row:
+                    cell.fill = total_fill
+                    cell.font = total_font
+                    cell.alignment = Alignment(horizontal="center", vertical="center")
+                else:
+                    cell.alignment = data_align
+
+                cell.border = thin_border
+
+                # 数字格式
+                if isinstance(cell.value, (int, float)):
+                    cell.number_format = '#,##0.00'
+
+    def _apply_conditional_format(self, ws, df: pd.DataFrame, header_levels: int,
+                                  template) -> None:
+        """应用条件格式"""
+        for cf in template.conditional_formats:
+            # 找到字段对应的列索引
+            col_idx = None
+            for idx, col in enumerate(df.columns, 1):
+                if col == cf.field:
+                    col_idx = idx
+                    break
+
+            if col_idx is None:
+                continue
+
+            # 应用规则
+            for rule in cf.rules:
+                value = rule.get('value')
+                style = rule.get('style', {})
+
+                for row_idx in range(header_levels + 1, ws.max_row + 1):
+                    cell = ws.cell(row=row_idx, column=col_idx)
+                    if cell.value == value:
+                        if 'bg_color' in style:
+                            cell.fill = PatternFill(
+                                start_color=style['bg_color'],
+                                end_color=style['bg_color'],
+                                fill_type="solid"
+                            )
+                        if 'font_color' in style:
+                            cell.font = Font(color=style['font_color'])
+
+    def _adjust_complex_column_widths(self, ws, header_structure: List[List[Dict]],
+                                      df: pd.DataFrame) -> None:
+        """调整复杂报表的列宽"""
+        # 获取叶子节点（实际数据列）
+        leaf_cols = []
+        if header_structure:
+            for cell in header_structure[-1]:
+                leaf_cols.append(cell['name'])
+
+        for col_idx, col_name in enumerate(leaf_cols if leaf_cols else df.columns, 1):
+            col_letter = get_column_letter(col_idx)
+
+            # 计算最大宽度
+            max_len = len(str(col_name))
+
+            if col_name in df.columns:
+                col_data = df[col_name].astype(str)
+                for val in col_data.head(100):
+                    val_width = self._get_text_width(val)
+                    max_len = max(max_len, val_width)
+
+            adjusted_width = min(max(max_len * self.base_col_width + 2, 8), 50)
+            ws.column_dimensions[col_letter].width = adjusted_width
+
+    def _adjust_complex_row_heights(self, ws, header_levels: int, df: pd.DataFrame) -> None:
+        """调整复杂报表的行高"""
+        # 表头行高
+        for row_idx in range(1, header_levels + 1):
+            ws.row_dimensions[row_idx].height = 30
+
+        # 数据行高
+        for row_idx in range(header_levels + 1, ws.max_row + 1):
+            max_lines = 1
+            for col_idx in range(1, len(df.columns) + 1):
+                cell = ws.cell(row=row_idx, column=col_idx)
+                if cell.value:
+                    col_letter = get_column_letter(col_idx)
+                    col_width = ws.column_dimensions[col_letter].width or 8
+                    text_len = self._get_text_width(str(cell.value))
+                    if col_width > 0:
+                        lines_needed = max(1, int(text_len / col_width) + 1)
+                        max_lines = max(max_lines, lines_needed)
+
+            height = min(max(max_lines * 15, self.min_row_height), self.max_row_height)
+            ws.row_dimensions[row_idx].height = height
+
     def export_comparison(self, comparison_result: Dict[str, Any], file_path: str) -> None:
-        """导出对比分析结果"""
         path = Path(file_path)
         path.parent.mkdir(parents=True, exist_ok=True)
 

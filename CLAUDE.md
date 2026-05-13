@@ -147,3 +147,227 @@ MainWindow、AnalysisPanel、FieldSelector 均实现 `dragEnterEvent`/`dropEvent
 
 ## 测试
 **项目无自动化测试。** core/ 模块无 Qt 依赖，理论上可独立测试。验证主要依靠 `ruff check .` 和手动运行应用。
+
+---
+
+## 修改记录
+
+### 2026-05-13 报表格式优化
+
+#### 问题
+导出的 Excel 表格没有自适应行高和列宽，且缺少标准报表格式（边框、数字格式、打印设置等）。
+
+#### 修改内容
+
+**1. core/exporter.py - Excel 导出增强**
+
+新增功能：
+- **边框线**：表头白色边框，数据行黑色细边框
+- **数字格式**：普通数值千分位格式 `#,##0.00`，百分比自动识别为 `0.00%`
+- **冻结首行 + 自动筛选**：首行冻结，自动添加筛选器下拉箭头
+- **打印区域和页面设置**：
+  - 列数 > 6 时自动切换横向
+  - A4 纸张，自适应宽度（1页宽）
+  - 打印标题行重复
+  - 页边距设置（左右 0.5，上下 0.75）
+- **行高列宽自适应**：
+  - 中文按 2 字符宽度计算（使用 `unicodedata.east_asian_width`）
+  - 自动换行，最小行高 15，最大行高 60
+  - 采样前 100 行避免大数据量过慢
+
+新增方法：
+- `_apply_table_format()` - 应用表格格式（边框、样式、数字格式）
+- `_freeze_header_and_filter()` - 冻结首行并添加自动筛选
+- `_setup_print_settings()` - 设置打印区域和页面设置
+- `_get_text_width()` - 计算文本宽度（中文按 2 字符）
+- `_adjust_column_widths()` - DataFrame 列宽自适应
+- `_adjust_row_heights()` - DataFrame 行高自适应
+- `_adjust_column_widths_for_worksheet()` - Worksheet 列宽自适应
+- `_adjust_row_heights_for_worksheet()` - Worksheet 行高自适应
+- `_apply_format_to_worksheet()` - 为 Worksheet 应用格式
+
+所有导出方法更新：
+- `export_with_format()` - 主导出方法
+- `export_stats_report()` - 统计报告
+- `export_quality_report()` - 数据质量报告
+- `export_comparison()` - 对比分析报告
+
+**2. core/reporter.py - Word 报告增强**
+
+新增功能：
+- **表格样式美化**：
+  - 表头：蓝色背景 `#366092` + 白色字体 + 粗体 + 居中
+  - 隔行变色：浅灰 `#F2F2F2` / 白色 `#FFFFFF` 交替
+  - 黑色边框
+  - 数字右对齐，其他居中
+  - 统一字体大小 10pt
+- **页眉页脚**：
+  - 页眉：报告标题（居中，灰色，9pt）
+  - 页脚：页码 / 总页数（居中，灰色，9pt）
+
+新增方法：
+- `_set_cell_shading()` - 设置单元格背景色
+- `_set_cell_border()` - 设置单元格边框
+- `_set_cell_font()` - 设置单元格字体
+- `_add_header_footer()` - 添加页眉页脚
+
+修改方法：
+- `create_document()` - 支持添加页眉页脚参数
+- `add_table_from_df()` - 增强表格样式（边框、隔行变色、对齐）
+
+#### 技术细节
+- 使用 `openpyxl.styles.Border` 和 `Side` 实现边框
+- 使用 `openpyxl.worksheet.page.PageMargins` 设置页边距
+- 使用 `docx.oxml` 操作 Word XML 实现背景色和页码
+- 使用 `unicodedata.east_asian_width` 识别中文字符宽度
+
+#### 验证
+- 语法检查通过：`python3 -m py_compile core/exporter.py`
+- 语法检查通过：`python3 -m py_compile core/reporter.py`
+
+---
+
+### 2026-05-13 复杂报表模板系统
+
+#### 功能概述
+新增复杂报表模板系统，支持多层表头、数据映射、计算规则、条件格式，可生成类似宽带业务不可用时长统计报表的复杂格式。
+
+#### 新增文件
+
+**1. core/complex_report.py - 复杂报表核心模块**
+
+数据类定义：
+- `HeaderCell` - 表头单元格（名称、跨行列数、父级、数据字段、对齐）
+- `CalculationRule` - 计算规则（排名、公式、求和、平均）
+- `ConditionalFormat` - 条件格式（排名前三高亮等）
+- `TotalRowConfig` - 合计行配置
+- `ComplexReportTemplate` - 复杂报表模板（完整配置）
+
+核心类：
+- `ComplexReportGenerator` - 报表生成引擎
+  - `generate()` - 根据模板生成报表数据
+  - `_apply_data_mapping()` - 应用数据映射
+  - `_apply_calculations()` - 执行计算规则
+  - `_calc_rank()` - 计算排名
+  - `_calc_formula()` - 计算公式
+  - `_restructure_data()` - 重组数据结构
+  - `get_header_structure()` - 获取表头结构
+  - `calculate_total_row()` - 计算合计行
+
+- `TemplateLibrary` - 预定义模板库
+  - `create_broadband_outage_template()` - 宽带业务不可用时长报表模板
+
+**2. core/exporter.py - 新增复杂报表导出方法**
+
+新增方法：
+- `export_complex_report()` - 导出复杂报表
+  - 支持多层表头
+  - 支持合并单元格
+  - 支持条件格式（排名高亮）
+  - 支持合计行
+  - 完整打印设置
+- `_write_multi_headers()` - 写入并合并多层表头
+- `_apply_complex_data_format()` - 应用复杂数据格式
+- `_apply_conditional_format()` - 应用条件格式
+- `_adjust_complex_column_widths()` - 调整复杂报表列宽
+- `_adjust_complex_row_heights()` - 调整复杂报表行高
+
+**3. ui/template_designer.py - 模板设计器界面**
+
+界面组件：
+- `HeaderDesignerWidget` - 表头设计器
+  - 可视化配置多层表头
+  - 支持跨行跨列设置
+  - 支持父级关系配置
+- `CalculationRuleWidget` - 计算规则配置
+  - 排名、公式、求和、平均
+- `TemplateDesignerDialog` - 模板设计器对话框
+  - 模板基本信息配置
+  - 表头设计
+  - 计算规则配置
+  - 合计行配置
+  - 保存/加载模板
+
+#### 使用方式
+
+**1. 使用预定义模板**
+```python
+from core import TemplateLibrary, ComplexReportGenerator, ExcelExporter
+
+# 获取预定义模板
+template = TemplateLibrary.create_broadband_outage_template()
+
+# 生成报表数据
+generator = ComplexReportGenerator(template)
+report_df = generator.generate(raw_df)
+
+# 导出复杂报表
+exporter = ExcelExporter()
+exporter.export_complex_report(raw_df, template, 'output.xlsx')
+```
+
+**2. 自定义模板**
+```python
+from core import ComplexReportTemplate, HeaderCell, CalculationRule
+
+# 创建模板
+template = ComplexReportTemplate(
+    name='custom_report',
+    title='自定义报表',
+    headers=[
+        [HeaderCell(name='单位', rowspan=2, data_field='unit')],
+        [HeaderCell(name='数值', parent='单位', data_field='value')]
+    ],
+    calculations=[
+        CalculationRule(name='排名', calc_type='rank', params={'by': 'value'})
+    ]
+)
+
+# 保存模板
+template.save('custom_template.json')
+```
+
+**3. 使用模板设计器**
+```python
+from ui import show_template_designer
+
+# 打开设计器对话框
+template = show_template_designer(parent_window)
+```
+
+#### 模板配置说明
+
+**表头结构**：
+- 支持多层嵌套（2层及以上）
+- 支持跨行(rowspan)和跨列(colspan)
+- 支持父级关系（子表头归属）
+
+**数据映射**：
+- 模板字段名 → 原始数据列名
+- 支持计算字段（calculated:xxx）
+
+**计算规则**：
+- `rank` - 排名（支持升序/降序）
+- `formula` - 公式计算（支持DataFrame表达式）
+- `sum` - 多列求和
+- `avg` - 多列平均
+
+**条件格式**：
+- 支持按值匹配
+- 支持背景色、字体颜色设置
+- 典型应用：排名前三高亮
+
+**合计行**：
+- 支持按列配置聚合方式
+- 支持 sum/avg/count/-（不计算）
+
+#### 技术特点
+
+1. **模板可序列化** - JSON格式保存，可复用
+2. **数据与表现分离** - 模板定义结构，数据动态填充
+3. **计算规则可扩展** - 支持自定义计算类型
+4. **可视化设计** - 无需编码，界面配置
+
+#### 验证
+- 语法检查通过：`python3 -m py_compile core/complex_report.py`
+- 语法检查通过：`python3 -m py_compile ui/template_designer.py`

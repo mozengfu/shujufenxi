@@ -8,5 +8,10 @@ from .merge_dialog import MergeDialog
 from .help_dialog import HelpDialog
 from .clean_dialog import CleanDialog
 from .ai_chat_dialog import AIChatDialog
+from .template_designer import TemplateDesignerDialog, show_template_designer
 
-__all__ = ['MainWindow', 'ImportDialog', 'AnalysisPanel', 'FieldSelector', 'ReportDialog', 'MergeDialog', 'HelpDialog', 'CleanDialog', 'AIChatDialog']
+__all__ = [
+    'MainWindow', 'ImportDialog', 'AnalysisPanel', 'FieldSelector',
+    'ReportDialog', 'MergeDialog', 'HelpDialog', 'CleanDialog', 'AIChatDialog',
+    'TemplateDesignerDialog', 'show_template_designer'
+]
