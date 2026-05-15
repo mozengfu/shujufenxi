@@ -297,6 +297,21 @@ class MainWindow(QMainWindow):
         calc_action.triggered.connect(self.calc_column)
         data_menu.addAction(calc_action)
 
+        # 报表菜单
+        report_menu = menubar.addMenu('报表')
+
+        template_designer_action = QAction('模板设计器', self)
+        template_designer_action.triggered.connect(self.open_template_designer)
+        report_menu.addAction(template_designer_action)
+
+        report_menu.addSeparator()
+
+        predefined_menu = report_menu.addMenu('预定义模板')
+
+        broadband_action = QAction('宽带业务不可用时长报表', self)
+        broadband_action.triggered.connect(self.open_broadband_template)
+        predefined_menu.addAction(broadband_action)
+
         # 设置菜单
         settings_menu = menubar.addMenu('设置')
 
@@ -551,4 +566,22 @@ class MainWindow(QMainWindow):
         """显示 AI 对话对话框"""
         from .ai_chat_dialog import AIChatDialog
         dialog = AIChatDialog(self, df=self.current_df)
+        dialog.exec_()
+
+    def open_template_designer(self):
+        """打开模板设计器"""
+        from .template_designer import show_template_designer
+        show_template_designer(self)
+
+    def open_broadband_template(self):
+        """打开宽带业务不可用时长报表模板"""
+        from .template_designer import TemplateDesignerDialog
+        from core.complex_report import TemplateLibrary
+
+        dialog = TemplateDesignerDialog(self)
+        # 加载预定义模板
+        library = TemplateLibrary()
+        template = library.get_template('broadband_unavailable')
+        if template:
+            dialog.set_template(template)
         dialog.exec_()
