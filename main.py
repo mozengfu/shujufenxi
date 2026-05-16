@@ -48,6 +48,19 @@ except Exception:
     _log_crash(sys.exc_info())
     raise
 
+# ── 全局异常钩子（捕获 Qt 槽函数内未处理异常，写入崩溃日志）──
+_original_excepthook = sys.excepthook
+
+
+def _global_excepthook(exc_type, exc_value, exc_tb):
+    """将未捕获异常写入崩溃日志（包括 Qt 槽函数内部的异常）"""
+    _log_crash((exc_type, exc_value, exc_tb))
+    if _original_excepthook:
+        _original_excepthook(exc_type, exc_value, exc_tb)
+
+
+sys.excepthook = _global_excepthook
+
 from PyQt5.QtWidgets import QApplication, QMessageBox
 from PyQt5.QtGui import QFont, QColor, QPalette
 from PyQt5.QtCore import QTranslator, QLibraryInfo, QLocale

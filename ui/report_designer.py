@@ -36,10 +36,16 @@ class ReportDesigner(QDialog):
         self.chart_figures = {}
         self.analysis_result = None
         if parent and hasattr(parent, 'analysis_panel'):
-            fig = parent.analysis_panel.chart_figure
-            if fig is not None:
-                self.chart_figures['current'] = fig
-            self.analysis_result = parent.analysis_panel.last_result_df
+            try:
+                fig = parent.analysis_panel.chart_figure
+                if fig is not None:
+                    self.chart_figures['current'] = fig
+            except Exception:
+                pass
+            try:
+                self.analysis_result = parent.analysis_panel.last_result_df
+            except Exception:
+                pass
         self.settings = QSettings('shujufenxi', 'report_templates')
         self.init_ui()
 

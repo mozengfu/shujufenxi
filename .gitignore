@@ -44,6 +44,9 @@ data_analysis_system
 !数据分析系统-win.spec
 __pycache__/
 
+# Build artifacts
+releases/
+
 # OS
 .DS_Store
 Thumbs.db

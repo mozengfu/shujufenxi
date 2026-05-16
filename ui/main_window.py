@@ -461,8 +461,13 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, '警告', '请先导入数据')
             return
 
-        dialog = ReportDesigner(self, df=self.current_df)
-        dialog.exec_()
+        try:
+            dialog = ReportDesigner(self, df=self.current_df)
+            dialog.exec_()
+        except Exception as e:
+            import traceback
+            QMessageBox.critical(self, '错误',
+                f'打开自定义报表设计器时出错：{e}\n\n{traceback.format_exc()}')
 
     def export_word(self):
         """导出 Word 报告"""
