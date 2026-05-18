@@ -68,15 +68,16 @@ def make_total_row(df: pd.DataFrame, agg_items: list = None) -> pd.Series:
                 if base_col and base_col in df.columns:
                     base_total = df[base_col].sum()
                     if base_total != 0:
-                        totals.append((df[qty_alias].sum() / base_total * 100).round(2))
+                        totals.append(round(df[qty_alias].sum() / base_total * 100, 2))
                     else:
-                        totals.append('-')
+                        totals.append(0.0)
                 else:
-                    totals.append('-')
+                    totals.append(0.0)
             else:
                 totals.append(df[col].sum())
         elif is_percent_col(col):
-            totals.append(100.0 if col == '占比%' else '-')
+            # 占比类列：合计行恒为 100.0
+            totals.append(100.0)
         elif _is_numeric(df[col]):
             totals.append(df[col].sum())
         elif j == 0:

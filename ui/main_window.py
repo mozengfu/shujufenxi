@@ -581,12 +581,8 @@ class MainWindow(QMainWindow):
     def open_broadband_template(self):
         """打开宽带业务不可用时长报表模板"""
         from .template_designer import TemplateDesignerDialog
-        from core.complex_report import TemplateLibrary
+        from core.complex_report import BROADBAND_OUTAGE_TEMPLATE
 
         dialog = TemplateDesignerDialog(self)
-        # 加载预定义模板
-        library = TemplateLibrary()
-        template = library.get_template('broadband_unavailable')
-        if template:
-            dialog.set_template(template)
+        dialog.set_template(BROADBAND_OUTAGE_TEMPLATE)
         dialog.exec_()

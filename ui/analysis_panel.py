@@ -784,12 +784,11 @@ class AnalysisPanel(QWidget):
             QMessageBox.warning(self, '警告', '请先在 AI 配置中设置 API Key')
             return
 
-        # 调试信息：显示当前配置
-        ep = self.summarizer.endpoint
-        model = self.summarizer.model
-        key_preview = self.summarizer.api_key[:10] + '...' if self.summarizer.api_key else '(empty)'
-        from PyQt5.QtWidgets import QMessageBox
-        QMessageBox.information(self, 'AI 配置', f'Endpoint: {ep}\nModel: {model}\nKey: {key_preview}')
+        # 重新读取最新 AI 配置
+        self._refresh_ai_config()
+        if not self.summarizer.api_key:
+            QMessageBox.warning(self, '警告', '请先在 AI 配置中设置 API Key')
+            return
 
         self.ai_summary_edit.setText('正在生成 AI 总结...')
         self.ai_gen_btn.setEnabled(False)
